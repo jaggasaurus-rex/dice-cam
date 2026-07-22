@@ -1,6 +1,7 @@
 from live_frame import pipCount
 from tkinter import*
 from tkinter import ttk 
+from discord import fireMessage
 
 def userWindow():
     root = Tk()
@@ -20,6 +21,7 @@ def userWindow():
         pips_check = pipCount()
         if pips_check:
             pip_text.set(pips_check)
+            fireMessage(pips_check)
         root.after(500, refresh)
 
     root.after(500, refresh)

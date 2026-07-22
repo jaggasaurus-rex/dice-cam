@@ -24,6 +24,9 @@ detector = cv2.SimpleBlobDetector_create(params)
 def pipCount():
     ret, frame = feed.read()
 
+    if ret == False:
+        return
+
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5,5), 0)
     
