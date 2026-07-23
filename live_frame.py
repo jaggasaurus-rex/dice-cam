@@ -39,10 +39,29 @@ def pipCount():
         31,
         9)
 
-    
-    
-
     keypoints = detector.detect(bw)
- 
+
     return len(keypoints)
 
+def liveFeed():
+    active = True
+    while active == True:
+        _, frame = feed.read()
+        cv2.imshow("Dice Cam", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            active = False
+
+
+def newRollDetector():
+    pips_1 = pipCount()
+    pips_2 = 0
+    while True:
+        if pips_1 != pips_2:
+            if pips_1 != 0 and pips_2 == 0:
+                print(pips_1)
+            pips_2 = pips_1
+            
+        else:
+            pips_1 = pipCount()
+
+#newRollDetector()
