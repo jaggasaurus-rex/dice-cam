@@ -3,6 +3,7 @@ from tkinter import*
 from tkinter import ttk 
 from discord import fireMessage
 from quick_functions import *
+from ui_vars import *
 
 def userWindow():
     root = Tk()
@@ -20,13 +21,14 @@ def userWindow():
     saved_url.set("Discord not integrated")
 
     #Result Display
-    ttk.Label(frm, textvariable=pip_text, font=("Helvetica",120,"bold")).grid(column=0, row=0,columnspan=3,sticky="",padx=10)
+    ttk.Label(frm, textvariable=pip_text, font=("Helvetica",120,"bold")).grid(column=result_label_column, row=result_label_row,columnspan=3,sticky="",padx=10)
 
     #Discord Server Settings
-    ttk.Entry(frm, textvariable=input_url, width=40).grid(column=0, row=1)
+    ttk.Label(frm, text="Discord Channel URL").grid(column=dsc_url_label_column,row=dsc_url_label_row)
+    ttk.Entry(frm, textvariable=input_url, width=40).grid(column=dsc_url_entry_column, row=dsc_url_entry_row)
     def save():
         saved_url.set(input_url.get())
-    ttk.Button(frm, text="Save", command=save).grid(column=1, row=1)
+    ttk.Button(frm, text="Save", command=save).grid(column=dsc_save_button_column, row=dsc_save_button_row)
 
     #Discord Toggle
     discord_state = StringVar()
@@ -40,11 +42,12 @@ def userWindow():
         else:
             raise Exception("Issue with Discord Toggle")
 
-    ttk.Button(frm,text="Discord On/OFF", command=discordToggle).grid(column=2, row=1)   
+    ttk.Label(frm, text="Discord Status: ").grid(column=dsc_status_label_column, row=dsc_status_label_row)
+    ttk.Button(frm,textvariable=discord_state, command=discordToggle).grid(column=dsc_status_button_column, row=dsc_status_button_row)   
 
 
     #Quit Button
-    ttk.Button(frm, text="Quit", command=root.destroy).grid(column=1, row=4,sticky="e")
+    ttk.Button(frm, text="Quit", command=root.destroy).grid(column=quit_button_column, row=quit_button_row,sticky="e")
    
     last_pips = 0
 
@@ -52,17 +55,15 @@ def userWindow():
         pips_check = pipCount()
         nonlocal last_pips
         if pips_check != last_pips and last_pips == 0:
-            print(f"post checking for truthy: {pips_check}")
             pip_text.set(pips_check)
             
-            ###uncomment to turn Discord notifications on
             if discord_state.get() == "On":
                 fireMessage(pips_check, saved_url.get())
             
             last_pips = pips_check
         
         elif last_pips == 0:
-            pip_text.set("Rolling")
+            pip_text.set("Roll")
             last_pips = pips_check
 
         else:
