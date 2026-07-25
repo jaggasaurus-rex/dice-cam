@@ -1,5 +1,6 @@
 import cv2
 import math
+from ollama_func import ollamaCall
 
 #initialize camera feed
 feed = cv2.VideoCapture(0)
@@ -27,6 +28,11 @@ def pipCount():
     if ret == False:
         return
 
+    dice_count = ollamaCall(frame)
+
+    print(dice_count)
+
+    """
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5,5), 0)
     
@@ -40,8 +46,8 @@ def pipCount():
         9)
 
     keypoints = detector.detect(bw)
-
     return len(keypoints)
+    """
 
 def liveFeed():
     active = True
@@ -65,3 +71,4 @@ def newRollDetector():
             pips_1 = pipCount()
 
 #newRollDetector()
+pipCount()
