@@ -23,3 +23,55 @@ def demo():
     root.mainloop()
 
 demo()
+
+
+##### Unused cleanup area:
+
+#define blob size (diameter in pixels)
+max_dia = 55
+min_dia = 20
+
+#set parameters for blob detector
+params = cv2.SimpleBlobDetector_Params()
+params.filterByCircularity = True
+params.minCircularity = 0.8
+params.blobColor = 255
+params.filterByColor = False
+params.maxArea = math.pi * ((max_dia/2) ** 2)
+params.minArea = math.pi * ((min_dia/2) ** 2)
+
+#generates detector
+detector = cv2.SimpleBlobDetector_create(params)
+
+
+def pipCount():
+    ret, frame = feed.read()
+
+    if ret == False:
+        return
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (5,5), 0)
+    
+    #_, bw = cv2.adaptiveThreshold(blur, 127, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    bw = cv2.adaptiveThreshold(
+        blur, 
+        255, 
+        cv2.ADAPTIVE_THRESH_MEAN_C, 
+        cv2.THRESH_BINARY_INV,
+        11,
+        3)
+
+    #keypoints = detector.detect(bw)
+
+    #return len(keypoints)
+
+    success, buffer = cv2.imencode('.jpg', bw)
+
+    image_jpg = buffer.tobytes()
+
+    dice_count = ollamaCall(image_jpg)
+
+    print(dice_count)
+
+    #return dice_count
