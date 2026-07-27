@@ -5,10 +5,27 @@ design decision reached in discussion; the implementation is still to be written
 
 ## ⚠️ Outstanding security item — check this first
 
-A **live Discord webhook URL** was pasted into an earlier chat session and still
-sits in a comment at `discord.py:3`. A previous agent advised rotating it;
-confirmation was never received. Ask Tyler whether that webhook was deleted and
-regenerated, and remove the URL from the source comment regardless.
+A **live Discord webhook URL** was pasted into an earlier chat session. As of
+commit `53e4966` it has been removed from `discord_webhook.py` but **moved, not
+deleted** — it now sits in a comment at `test.py:5`.
+
+Three things a new agent should understand before assuming this is handled:
+
+1. `test.py` was added to `.gitignore`, but **`.gitignore` only affects
+   untracked files.** `test.py` was already tracked, so it is still tracked and
+   the URL is still committed at HEAD. Untracking requires
+   `git rm --cached test.py`.
+2. The URL exists in at least three commits (`70b6230`, `fc47143`, `53e4966`).
+   It is in history permanently short of a history rewrite.
+3. Therefore **rotating the webhook in Discord is the only real fix** — delete
+   it and generate a new one. Once rotated, the strings in history are inert.
+
+Status: **unconfirmed.** Ask Tyler directly whether the webhook was rotated.
+
+Also outstanding: `__pycache__/` is tracked in git, including a stale
+`discord.cpython-313.pyc` and a `frame_processing.cpython-313.pyc` from a module
+that no longer exists. Suggest `git rm -r --cached __pycache__` plus a
+`.gitignore` entry.
 
 ## How to work with Tyler on this
 
@@ -79,7 +96,7 @@ Output channels: tkinter desktop GUI + Discord webhook post.
 | `interface.py` | tkinter UI, polling loop, Discord toggle |
 | `live_frame.py` | OpenCV capture, crop, threshold, roll detection |
 | `ollama_func.py` | VLM call (`qwen2.5vl:7b` via ollama) |
-| `discord.py` | Webhook POST |
+| `discord_webhook.py` | Webhook POST (renamed from `discord.py`) |
 | `ui_vars.py` | Grid coordinate constants |
 | `quick_functions.py` | A `toggle` helper |
 | `test.py` | Scratch — old tkinter demo + dead pip-counting code |
@@ -120,11 +137,12 @@ Three additional structural problems identified:
    new roll from the *value changing*. A 14 followed by another 14 is invisible,
    and any single-frame misread fires a false roll. Detection must come from
    **motion**, not value.
-3. `discord.py` shadows the `discord` PyPI package. Rename to
-   `discord_webhook.py`. **This is not hypothetical** — the project already lost
-   time to exactly this bug once, when a local `ollama.py` shadowed the `ollama`
-   package and produced `module has no attribute 'chat'`. Same failure class,
-   already bitten.
+3. ~~`discord.py` shadows the `discord` PyPI package.~~ **RESOLVED** in commit
+   `53e4966` — renamed to `discord_webhook.py` and the import in `interface.py`
+   updated. Recorded because the hazard was not hypothetical: the project had
+   already lost time to a local `ollama.py` shadowing the `ollama` package
+   (`module has no attribute 'chat'`). Watch for the pattern recurring with new
+   module names.
 
 ## Prior art: what has already been tried and rejected
 
@@ -277,8 +295,10 @@ make in place.
 - `quick_functions.py` — `toggle` rebinds a local, return value unused;
   `interface.py` has its own inline version
 
-**Rename:**
-- `discord.py` → `discord_webhook.py`
+**Note on `test.py`:** it is now a scratch dumping ground and **will not run** —
+it references `cv2`, `math`, `feed`, and `ollamaCall` without importing any of
+them. That is fine for a scratchpad; do not report it as a bug, and do not
+"fix" it unprompted.
 
 **Rework:**
 - `cropFrame` — user ROI + calibration-time background model + sanity checks
@@ -312,7 +332,9 @@ Each stage is independently testable, which the current pipeline is not.
 
 ## Open threads
 
-- Discord webhook rotation — unconfirmed
+- Discord webhook rotation — **unconfirmed**; URL still committed at
+  `test.py:5` and present in history (see top of document)
+- `__pycache__/` tracked in git, with stale entries
 - Camera position (overhead vs. angled) — unconfirmed, blocks stage 2/3 design
 - Per-digit vs. whole-face classification — fork not yet decided
 - Whether d6 pip mode is kept alongside d20 — assumed yes, not confirmed
