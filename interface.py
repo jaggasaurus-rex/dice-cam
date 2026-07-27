@@ -1,7 +1,7 @@
 from live_frame import pipCount, liveFeed, newRollDetector
 from tkinter import*
 from tkinter import ttk 
-from discord import fireMessage
+from discord_webhook import fireMessage
 from quick_functions import *
 from ui_vars import *
 

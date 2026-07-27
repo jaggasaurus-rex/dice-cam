@@ -1,6 +1,9 @@
 from tkinter import *
 from tkinter import ttk
 
+
+#server_url = "https://discord.com/api/webhooks/1529286260877692978/ZGf1Pbso23D8JSfa4UK7h-1BKJkEZ68qEbQ1xRNGtzhW0DgYhD5L58qcPmwyMiU5ttms"
+
 def demo():
     root = Tk()
     frm = ttk.Frame(root, padding=10)
