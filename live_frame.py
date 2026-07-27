@@ -37,7 +37,7 @@ def normalizeFrame(cropped_die):
     return bw
 
 def findTop(bw_image):
-    parts, _ = cv2.findCountours(bw_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    parts, _ = cv2.findContours(bw_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     crop_h, crop_w = bw_image.shape
     center_x, center_y = crop_w / 2, crop_h / 2
 
@@ -47,7 +47,7 @@ def findTop(bw_image):
         if M["m00"] == 0:
             continue
 
-        cx = M["m10" / M["m00"]
+        cx = M["m10"] / M["m00"]
         cy = M["m01"] / M["m00"]
 
         dist = ((cx - center_x)**2 + (cy - center_y)**2) ** 0.5
@@ -55,7 +55,11 @@ def findTop(bw_image):
         if dist < crop_w * 0.25 and cv2.contourArea(c) > 50:
             kept.append(c)
 
-    print("blobs kept:" len(kept))
+    print("blobs kept:", len(kept))
+
+    vis = cv2.cvtColor(bw_image, cv2.COLOR_GRAY2BGR)
+    cv2.drawContours(vis, kept, -1, (0, 255, 0), 2)
+    imgDisplay(vis)
         
 
 
@@ -105,7 +109,7 @@ def newRollDetector():
 def test_func():
     new_frame = cropFrame()
     normalized = normalizeFrame(new_frame)
-    imgDisplay(normalized)
+    findTop(normalized)
 
 
 test_func()
