@@ -3,29 +3,41 @@
 Status as of 2026-07-27. No code has been changed yet. Everything below is a
 design decision reached in discussion; the implementation is still to be written.
 
-## ⚠️ Outstanding security item — check this first
+## Security status — RESOLVED (verified at commit `6872ef3`)
 
-A **live Discord webhook URL** was pasted into an earlier chat session. As of
-commit `53e4966` it has been removed from `discord_webhook.py` but **moved, not
-deleted** — it now sits in a comment at `test.py:5`.
+A live Discord webhook URL had been committed to the repo. This is now handled;
+recorded here so it is not re-raised as an open item.
 
-Three things a new agent should understand before assuming this is handled:
+- **Webhook rotated.** ID changed `1529286260877692978` → `1531381177993269501`
+  — a genuine rotation, not a re-paste. The old URL remains in commits
+  `70b6230` / `fc47143` / `53e4966`, but the endpoint is dead, so that history
+  is inert. **No history rewrite is needed. Do not propose one.**
+- **New URL never committed.** Verified with `git log -S` across all refs — it
+  exists only in the untracked working-tree `test.py`.
+- **`test.py` untracked.** `git rm --cached` was applied; it no longer appears
+  in `git ls-files`.
 
-1. `test.py` was added to `.gitignore`, but **`.gitignore` only affects
-   untracked files.** `test.py` was already tracked, so it is still tracked and
-   the URL is still committed at HEAD. Untracking requires
-   `git rm --cached test.py`.
-2. The URL exists in at least three commits (`70b6230`, `fc47143`, `53e4966`).
-   It is in history permanently short of a history rewrite.
-3. Therefore **rotating the webhook in Discord is the only real fix** — delete
-   it and generate a new one. Once rotated, the strings in history are inert.
+### Remaining hygiene item (not a security issue)
 
-Status: **unconfirmed.** Ask Tyler directly whether the webhook was rotated.
+`__pycache__/` is still tracked — all seven `.pyc` files appear in
+`git ls-files`, including stale `discord.cpython-313.pyc` and
+`frame_processing.cpython-313.pyc` from modules that no longer exist. Two
+stacked causes:
 
-Also outstanding: `__pycache__/` is tracked in git, including a stale
-`discord.cpython-313.pyc` and a `frame_processing.cpython-313.pyc` from a module
-that no longer exists. Suggest `git rm -r --cached __pycache__` plus a
-`.gitignore` entry.
+1. **Typo in `.gitignore:2`** — reads `__pychache__/` (the `a` and `c` are
+   transposed). `git check-ignore` confirms nothing is being ignored.
+2. Already-tracked files are unaffected by `.gitignore` regardless, so it also
+   needs `git rm -r --cached __pycache__`.
+
+No secrets involved — just repo noise.
+
+### Forward-looking: consolidate secrets into the config file
+
+The live webhook is currently plaintext in an untracked file, which is one
+accidental `git add -f` from re-leaking. The design already calls for a config
+file to persist ROI and calibration data — **put the webhook URL there too**.
+One gitignored `config.json` holding all runtime settings, rather than a
+separate mechanism. Fold this into the config-persistence step.
 
 ## How to work with Tyler on this
 
@@ -295,10 +307,18 @@ make in place.
 - `quick_functions.py` — `toggle` rebinds a local, return value unused;
   `interface.py` has its own inline version
 
-**Note on `test.py`:** it is now a scratch dumping ground and **will not run** —
-it references `cv2`, `math`, `feed`, and `ollamaCall` without importing any of
-them. That is fine for a scratchpad; do not report it as a bug, and do not
-"fix" it unprompted.
+**Note on `test.py` — temporary, and slated for deletion.** Tyler's stated
+intent: it is a holding pen for code and text he may want to reuse elsewhere,
+and **the entire file will be deleted** once he is satisfied the new detection
+work stands on its own. Accordingly:
+
+- It **will not run** — it references `cv2`, `math`, `feed`, and `ollamaCall`
+  without importing any of them. This is expected. Do not report it as a bug and
+  do not "fix" it unprompted.
+- Do not propose integrating, refactoring, or preserving it.
+- Do not re-track it in git. It is untracked deliberately (it holds the live
+  webhook URL).
+- Treat it as read-only salvage material until Tyler nukes it.
 
 **Rework:**
 - `cropFrame` — user ROI + calibration-time background model + sanity checks
@@ -318,8 +338,8 @@ zero-setup path *and* the calibration auto-labeler.
 
 ## Suggested build order
 
-0. **Blockers first:** confirm the Discord webhook was rotated, and confirm
-   camera position (overhead vs. angled)
+0. **Blocker:** confirm camera position (overhead vs. angled). The webhook
+   security item is already closed — see top of document.
 1. Settle detector with adaptive threshold, in a new module
 2. ROI selection + config persistence
 3. Capture script (settle → crop → save), which doubles as the calibration
@@ -332,9 +352,8 @@ Each stage is independently testable, which the current pipeline is not.
 
 ## Open threads
 
-- Discord webhook rotation — **unconfirmed**; URL still committed at
-  `test.py:5` and present in history (see top of document)
-- `__pycache__/` tracked in git, with stale entries
+- `__pycache__/` tracked in git, with stale entries, and a `.gitignore` typo
+  (`__pychache__/`) — hygiene only
 - Camera position (overhead vs. angled) — unconfirmed, blocks stage 2/3 design
 - Per-digit vs. whole-face classification — fork not yet decided
 - Whether d6 pip mode is kept alongside d20 — assumed yes, not confirmed
