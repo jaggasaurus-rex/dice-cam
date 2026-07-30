@@ -41,51 +41,34 @@ def frameNoise():
             mean_frame_noise = statistics.mean(samples) + 4 * statistics.stdev(samples)
             threshhold = mean_frame_noise * error_margin
             active = False
-    print(threshhold)
     return threshhold
 
 
 def frameNoiseTest():
     threshhold = frameNoise()
-    
+    prev = None
+    diff_value = 0.0
     while True:
         ret, frame = capture.read()
         if ret is False:
             raise Exception("Camera read error")
         cv2.imshow("dice came", frame)
-
-
-def rollDetector():
-    active = True
-    moving = True
-    quiet_since = None
-    threshold = frameNoise()
-    prev = None
-    while active == True:
-        ret, frame = capture.read()
-        if ret is False:
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-        bw = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        blur = cv2.GaussianBlur(bw, (5,5), 0)
+        current_frame = frameConversion(frame)
         if prev is not None:
-            diff = cv2.absdiff(blur, prev)
-            result = cv2.mean(diff, mask=None)
-            cv2.imshow("dice came", blur)
-            if cv2.waitKey(1) & 0xFF == ord('q'): 
-                break
-            if result[0] == 0:
+            result = frameDiff(current_frame, prev)
+            if result == 0:
                 continue
+            diff_value = result - threshhold
 
-            detection_variable = result[0] - threshold
+        prev = current_frame
 
-            print(detection_variable)
+        if diff_value >= 0:
+            print(f"Rolling at: {diff_value}")
+        elif diff_value < 0:
+            print(f"Settled at: {diff_value}")
 
-            prev = blur
-
-
-
-    capture.release()
-    cv2.destroyAllWindows()
 
 
 """
