@@ -44,10 +44,14 @@ def frameNoise():
     return threshhold
 
 
-def frameNoiseTest():
+def dieRollDetection():
+    print("Calibrating camera environment")
     threshhold = frameNoise()
+    print("Calibration complete, waiting for roll")
     prev = None
-    diff_value = 0.0
+    result = 0.0
+    moving = False
+    quiet_since = None
     while True:
         ret, frame = capture.read()
         if ret is False:
@@ -60,31 +64,18 @@ def frameNoiseTest():
             result = frameDiff(current_frame, prev)
             if result == 0:
                 continue
-            diff_value = result - threshhold
+            if result > threshhold:
+                moving = True
+                quiet_since = None
+            if result <= threshhold:
+                if moving == True:
+                    if quiet_since is None:
+                        quiet_since = time.monotonic()
+                    elif time.monotonic() - quiet_since >= roll_dwell:
+                        print("SETTLE")
+                        moving = False
+                        quiet_since = None
 
         prev = current_frame
 
-        if diff_value >= 0:
-            print(f"Rolling at: {diff_value}")
-        elif diff_value < 0:
-            print(f"Settled at: {diff_value}")
-
-
-
-"""
-    if result[0] > threshhold:
-        moving = True
-        print("MOVING")
-
-    if moving:
-        if quiet_since is None:
-            quiet_since = time.monotonic()
-        elif time.monotonic() - quiet_since >= 0.5:
-            print("SETTLE")
-            moving = False
-            quiet_since = None
-"""
-
-frameNoiseTest()
-#frameNoise()
 
