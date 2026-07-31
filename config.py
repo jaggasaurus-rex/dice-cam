@@ -21,7 +21,6 @@ def loadConfig():
         pass
     return cfg
 
-
 def saveConfig(cfg):
     with open(CONFIG_PATH, "w") as f:
         json.dump(cfg, f, indent=4, sort_keys=True)
@@ -31,9 +30,9 @@ def writeEntryToConfig(entry_name, entry_value):
     if cfg.get(entry_name) is not None:
         while True:
             answer = input("Will overwrite previous value [Continue (Y/N)]: ")
-            if answer == "Y" or answer == "y":
+            if answer.strip().lower() == "y":
                 break
-            elif answer == "N" or answer == "n":
+            elif answer.strip().lower() == "n":
                 return cfg
             else:
                 print("Answer must be a Y or an N")

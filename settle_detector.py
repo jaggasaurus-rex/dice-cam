@@ -22,7 +22,11 @@ def displayWindow(frame):
     if cv2.waitKey(1) & 0xFF == ord('q'):
         return True
 
-def frameNoise():
+def cropToRoi(frame, roi):
+    x, y, w, h = roi
+    return frame[y:y+h, x:x+w]
+
+def frameNoise(roi):
     prev = None
     samples = []
     counter = 0
@@ -32,7 +36,8 @@ def frameNoise():
         ret, frame = capture.read()
         if ret is False:
             break
-        blur = frameConversion(frame)
+        crop = cropToRoi(frame, roi)
+        blur = frameConversion(crop)
         if prev is not None:
             result = frameDiff(blur, prev)
             if result == 0:
@@ -49,13 +54,13 @@ def frameNoise():
             active = False
     return threshhold
 
-def cameraCalibration():
+def cameraCalibration(roi):
     print("Calibrating camera environment")
-    threshhold = frameNoise()
+    threshhold = frameNoise(roi)  #need to insert ROI
     print("Calibration complete, waiting for roll")
     return threshhold
 
-def dieRollDetection(threshhold):
+def dieRollDetection(threshhold, roi):
     prev = None
     result = 0.0
     moving = False
@@ -64,7 +69,8 @@ def dieRollDetection(threshhold):
         ret, frame = capture.read()
         if ret is False:
             raise Exception("Camera read error")
-        current_frame = frameConversion(frame)
+        cropped = cropToRoi(frame, roi)
+        current_frame = frameConversion(cropped)
         if prev is not None:
             result = frameDiff(current_frame, prev)
             if result == 0:
@@ -107,16 +113,20 @@ def firstRunROIConfig():
     while True:
         roi = selectRoi()
         if roi is not None:
-            break     # user cancelled - re-prompting
-        print("ROI required - please drag a box")
+            break    
+        print("ROI required - please drag a box")  # user cancelled - re-prompting
 
-    cfg["roi"] = roi
+    cfg = writeEntryToConfig("roi", roi)
+    cv2.destroyAllWindows()
     return cfg
 
 def codeTester():
     try:
         cfg = firstRunROIConfig()
-        print(cfg)
+        threshhold = cameraCalibration(cfg["roi"])
+        while True:
+            result = dieRollDetection(threshhold, cfg["roi"])
+            print(result)
     except KeyboardInterrupt:
         pass
     finally:
