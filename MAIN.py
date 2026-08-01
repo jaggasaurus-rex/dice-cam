@@ -1,8 +1,14 @@
-from interface import userWindow
-#from live_frame import liveFeed
+from settle_detector import *
+from capture_generator import *
+from config import *
 
 def main():
-    userWindow()
-    #liveFeed()
+    cfg = firstRunROIConfig()
+    roi = cfg["roi"]
+    threshhold = cameraCalibration(roi)
+    while True:
+        for event in dieRollDetection(threshhold, roi):
+            saveCapture(roi)
+    
 
 main()

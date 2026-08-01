@@ -3,9 +3,8 @@ import statistics
 from general_variables import *
 import time
 from config import *
+from camera import capture
 
-
-capture = cv2.VideoCapture(0, apiPreference=cv2.CAP_ANY)
 
 def frameConversion(frame):
     bw = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -119,18 +118,3 @@ def firstRunROIConfig():
     cfg = writeEntryToConfig("roi", roi)
     cv2.destroyAllWindows()
     return cfg
-
-def codeTester():
-    try:
-        cfg = firstRunROIConfig()
-        threshhold = cameraCalibration(cfg["roi"])
-        while True:
-            result = dieRollDetection(threshhold, cfg["roi"])
-            print(result)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        capture.release()
-        cv2.destroyAllWindows()
-
-codeTester()

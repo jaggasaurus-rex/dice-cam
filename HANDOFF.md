@@ -211,6 +211,33 @@ second of capture, not hardcoded — that is what makes it work on any webcam.
 This replaces `newRollDetector` entirely and fixes both the repeated-value and
 false-positive problems.
 
+**Built and working** (`settle_detector.py`). Noise floor is `mean + 4*stdev`
+over ~30 idle samples, times `error_margin` from `general_variables.py`. First
+30 frames are discarded for auto-exposure settling, and exact-`0.0` diffs are
+skipped as duplicate frames (the loop polls faster than the camera refreshes;
+left unfiltered they pad the quiet counter and fire settles mid-bounce).
+
+**Parked robustness upgrade — swap the mean metric for a changed-pixel count.**
+`cv2.mean` averages change across the whole ROI, so a small die at distance gets
+buried by the unchanged pixels around it. This showed up in testing: a hand
+triggered reliably, a die did not. Tightening the ROI and lowering
+`error_margin` resolved it for the current setup, but the dilution is inherent
+to the metric and will resurface at longer camera distances or with smaller
+dice. The more robust measure counts *how many* pixels changed rather than *how
+much on average*:
+
+```python
+diff = cv2.absdiff(active, prev)
+_, mask = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
+changed = cv2.countNonZero(mask)
+```
+
+Localized motion survives this; averaging destroys it. It is also less sensitive
+to a uniform lighting shift, which moves the mean but trips few pixels past the
+per-pixel cutoff. Drop-in replacement for the body of `frameDiff` — the floor,
+`error_margin`, and state machine all work unchanged, but `error_margin` needs
+re-tuning because the units change from brightness-delta to pixel count.
+
 ### 2. Locate and crop the die
 
 - **One-time user ROI drag** (`cv2.selectROI` or a tkinter canvas), saved to a
@@ -338,12 +365,20 @@ zero-setup path *and* the calibration auto-labeler.
 
 ## Suggested build order
 
-0. **Blocker:** confirm camera position (overhead vs. angled). The webhook
-   security item is already closed — see top of document.
-1. Settle detector with adaptive threshold, in a new module
-2. ROI selection + config persistence
+0. ~~**Blocker:** confirm camera position.~~ **ANSWERED 2026-07-30:** Tyler will
+   set up **overhead**. Angled support is deferred to a settings-menu choice, so
+   build only the overhead path and branch on `cfg["camera_mount"]` later —
+   the system should not have to handle both simultaneously.
+1. ~~Settle detector with adaptive threshold, in a new module~~ **DONE** —
+   `settle_detector.py`
+2. ~~ROI selection + config persistence~~ **DONE** — `cv2.selectROI` saved to a
+   gitignored `config.json` via `config.py` (`loadConfig` / `saveConfig` /
+   `writeEntryToConfig`). `loadConfig` merges the file over `DEFAULTS.copy()`
+   so configs written before a new key was added self-heal instead of
+   `KeyError`-ing. Frames are sliced to the ROI right after `capture.read()`,
+   before conversion, so the helpers needed no changes.
 3. Capture script (settle → crop → save), which doubles as the calibration
-   data collector
+   data collector — **NEXT**
 4. VLM voting path — gives a working end-to-end product
 5. Embedding + k-NN classifier and the calibration wizard UI
 6. Rewire `interface.py` to consume settle events
@@ -352,9 +387,10 @@ Each stage is independently testable, which the current pipeline is not.
 
 ## Open threads
 
-- `__pycache__/` tracked in git, with stale entries, and a `.gitignore` typo
-  (`__pychache__/`) — hygiene only
-- Camera position (overhead vs. angled) — unconfirmed, blocks stage 2/3 design
+- ~~`__pycache__/` tracked in git, `.gitignore` typo~~ **CLOSED** — typo fixed,
+  nothing matching `__pycache__`/`config.json`/`test.py` appears in
+  `git ls-files`, and `git check-ignore -v` confirms all three rules fire.
+- ~~Camera position~~ **CLOSED** — overhead; see build order step 0.
 - Per-digit vs. whole-face classification — fork not yet decided
 - Whether d6 pip mode is kept alongside d20 — assumed yes, not confirmed
 - Tyler was offered, and has not yet taken up, a detailed sketch of either the

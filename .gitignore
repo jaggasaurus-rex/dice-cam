@@ -2,3 +2,4 @@ test.py
 __pycache__/
 HANDOFF.md
 config.json
+captures/
