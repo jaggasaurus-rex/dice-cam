@@ -1,4 +1,3 @@
-from live_frame import pipCount, liveFeed, newRollDetector
 from tkinter import*
 from tkinter import ttk 
 from discord_webhook import fireMessage

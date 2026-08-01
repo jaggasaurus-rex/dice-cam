@@ -30,11 +30,11 @@ def frameNoise(roi):
     samples = []
     counter = 0
     active = True
-    threshhold = 0.0
+    threshold = 0.0
     while active == True:
         ret, frame = capture.read()
         if ret is False:
-            break
+            raise Exception("Camera read error")
         crop = cropToRoi(frame, roi)
         blur = frameConversion(crop)
         if prev is not None:
@@ -49,21 +49,22 @@ def frameNoise(roi):
 
         if counter >= 60:
             mean_frame_noise = statistics.mean(samples) + 4 * statistics.stdev(samples)
-            threshhold = mean_frame_noise * error_margin
+            threshold = mean_frame_noise * error_margin
             active = False
-    return threshhold
+    return threshold, prev
 
 def cameraCalibration(roi):
-    print("Calibrating camera environment")
-    threshhold = frameNoise(roi)  #need to insert ROI
+    print("Calibrating - Keep Tray Empty and Still")
+    threshold, background = frameNoise(roi)  #need to insert ROI
     print("Calibration complete, waiting for roll")
-    return threshhold
+    return threshold, background
 
-def dieRollDetection(threshhold, roi):
+def dieRollDetection(threshold, roi):
     prev = None
     result = 0.0
     moving = False
     quiet_since = None
+    above_thresh_count = 0
     while True:
         ret, frame = capture.read()
         if ret is False:
@@ -74,17 +75,21 @@ def dieRollDetection(threshhold, roi):
             result = frameDiff(current_frame, prev)
             if result == 0:
                 continue
-            if result > threshhold:
-                moving = True
-                quiet_since = None
-            if result <= threshhold:
+            elif result > threshold:
+                above_thresh_count+= 1
+                if above_thresh_count >= 5:
+                    moving = True
+                    quiet_since = None
+                
+            elif result <= threshold:
+                above_thresh_count = 0
                 if moving == True:
                     if quiet_since is None:
                         quiet_since = time.monotonic()
                     elif time.monotonic() - quiet_since >= roll_dwell:
                         moving = False
                         quiet_since = None
-                        return "SETTLE"
+                        yield "SETTLE"
 
         prev = current_frame
 
@@ -118,3 +123,19 @@ def firstRunROIConfig():
     cfg = writeEntryToConfig("roi", roi)
     cv2.destroyAllWindows()
     return cfg
+
+
+def occupancyCount(processed_frame, background):
+    diff = cv2.absdiff(processed_frame, background)
+    _, mask = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
+    return mask, cv2.countNonZero(mask)
+
+def grabProcessedFrame(frame, roi):
+    cropped = cropToRoi(frame, roi)
+    processed = frameConversion(cropped)
+    return processed
+
+def dieMask(processed_frame, background):
+    diff = cv2.absdiff(processed_frame, background)
+    _, mask = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
+    return mask

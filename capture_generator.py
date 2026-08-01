@@ -7,7 +7,13 @@ from camera import capture
 
 capture_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "captures")
 
-def saveCapture(roi):
+def saveSingleFrame(frame):
+    os.makedirs(capture_directory, exist_ok=True)
+    file_name = f"roll_{time.strftime('%Y%m%d_%H%M%S')}.png"
+    file_location = os.path.join(capture_directory, file_name)
+    cv2.imwrite(file_location, frame)
+
+def generateAndSaveFrame(roi):
     os.makedirs(capture_directory, exist_ok=True)
     file_name = f"roll_{time.strftime('%Y%m%d_%H%M%S')}.png"
     file_location = os.path.join(capture_directory, file_name)
