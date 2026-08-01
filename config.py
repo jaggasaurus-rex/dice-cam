@@ -3,7 +3,7 @@ import os
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 DEFAULTS = {
-  "roi": None,
+  "roi_points": None,
   "camera_mount": "overhead",
   "webhook_url": None,
   "noise_threshold": None,
