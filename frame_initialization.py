@@ -2,7 +2,7 @@ import cv2
 from camera import capture
 from config import *
 from settle_detector import *
-from numpy import np
+import numpy as np
 from general_variables import *
 
 def selectRoi():
@@ -37,10 +37,11 @@ def firstRunROIConfig():
     return cfg
 
 
-def occupancyCount(processed_frame, background):
+def occupancyCount(processed_frame, background, poly_mask):
     diff = cv2.absdiff(processed_frame, background)
-    _, mask = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
-    return mask, cv2.countNonZero(mask)
+    _, changed = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
+    changed = cv2.bitwise_and(changed, poly_mask)
+    return changed, cv2.countNonZero(changed)
 
 def grabProcessedFrame(frame, roi):
     cropped = cropToRoi(frame, roi)
@@ -83,5 +84,13 @@ def multiPoint():
     cv2.destroyWindow("dice cam")
     return points
 
+def buildTrayGeometry(cfg):
+    pts = np.array(cfg["roi_points"], dtype=np.int32)
+    x, y, w, h = cv2.boundingRect(pts)
+    poly_mask = np.zeroes((h, w), dtype=np.uint8)
+    cv2.fillPoly(poly_mask, [pts - [x, y]], 255)
+    return [x, y, w, h], poly_mask
 
-firstRunROIConfig()
+
+
+

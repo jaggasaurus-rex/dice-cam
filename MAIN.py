@@ -1,4 +1,5 @@
-from settle_detector import firstRunROIConfig, cameraCalibration, dieRollDetection, occupancyCount, dieMask, cropToRoi
+from settle_detector import cameraCalibration, dieRollDetection, cropToRoi
+from frame_initialization import firstRunROIConfig, occupancyCount, buildTrayGeometry
 from capture_generator import grabProcessedFrame, saveSingleFrame
 from general_variables import *
 from config import *
@@ -7,16 +8,16 @@ import cv2
 
 def main():
     cfg = firstRunROIConfig()
-    roi = cfg["roi"]
-    threshold, background = cameraCalibration(roi)
+    roi, poly_mask = buildTrayGeometry(cfg)
+    threshold, background = cameraCalibration(roi, poly_mask)
     #saveSingleFrame(background)
 
-    for event in dieRollDetection(threshold, roi):
+    for event in dieRollDetection(threshold, roi, poly_mask):
         ret, frame = capture.read()
         if ret is False:
             raise Exception("Camera read error")
         processed_frame = grabProcessedFrame(frame, roi)
-        mask, occupancy_count = occupancyCount(processed_frame, background)
+        mask, occupancy_count = occupancyCount(processed_frame, background, poly_mask)
         if occupancy_count > partial_occupancy_min and occupancy_count < occupancy_threshold:
             print("Roll not fully in frame. Roll again.")
         elif occupancy_count >= occupancy_threshold and occupancy_count < outlier_occupancy:

@@ -4,7 +4,6 @@ from general_variables import *
 import time
 from config import *
 from camera import capture
-from frame_initialization import *
 
 
 def frameConversion(frame):
@@ -12,10 +11,10 @@ def frameConversion(frame):
     blur = cv2.GaussianBlur(bw, (5,5), 0)
     return blur
 
-def frameDiff(active, prev):
+def frameDiff(active, prev, mask=None):
     diff = cv2.absdiff(active,prev)
-    result = cv2.mean(diff, mask=None)
-    return result[0]
+    result = cv2.mean(diff, mask=None)[0]
+    return cv2.mean(diff, mask=mask)[0]
 
 def displayWindow(frame):
     cv2.imshow("dice cam", frame)
@@ -26,7 +25,7 @@ def cropToRoi(frame, roi):
     x, y, w, h = roi
     return frame[y:y+h, x:x+w]
 
-def frameNoise(roi):
+def frameNoise(roi, poly_mask=None):
     prev = None
     samples = []
     counter = 0
@@ -39,7 +38,7 @@ def frameNoise(roi):
         crop = cropToRoi(frame, roi)
         blur = frameConversion(crop)
         if prev is not None:
-            result = frameDiff(blur, prev)
+            result = frameDiff(blur, prev, poly_mask=poly_mask)
             if result == 0:
                 continue
             counter+=1
@@ -60,7 +59,7 @@ def cameraCalibration(roi):
     print("Calibration complete, waiting for roll")
     return threshold, background
 
-def dieRollDetection(threshold, roi):
+def dieRollDetection(threshold, roi, poly_mask=None):
     prev = None
     result = 0.0
     moving = False
@@ -73,7 +72,7 @@ def dieRollDetection(threshold, roi):
         cropped = cropToRoi(frame, roi)
         current_frame = frameConversion(cropped)
         if prev is not None:
-            result = frameDiff(current_frame, prev)
+            result = frameDiff(current_frame, prev, poly_mask=poly_mask)
             if result == 0:
                 continue
             elif result > threshold:
