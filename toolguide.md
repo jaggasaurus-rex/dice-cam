@@ -81,6 +81,45 @@ if ret is False:
     raise Exception("Camera read error")
 ```
 
+### capture.set / capture.get
+
+```
+Function:
+capture.set(propId, value)
+    propId: which property to change
+        cv2.CAP_PROP_FRAME_WIDTH / cv2.CAP_PROP_FRAME_HEIGHT: resolution
+        cv2.CAP_PROP_FPS: frame rate
+        cv2.CAP_PROP_AUTOFOCUS: 1 enables, 0 disables
+        cv2.CAP_PROP_FOCUS: manual focus position, driver-dependent scale
+        cv2.CAP_PROP_EXPOSURE / cv2.CAP_PROP_GAIN: exposure controls
+    value: the requested value
+    returns: True/False — but drivers frequently return True and then
+        ignore the request entirely
+
+capture.get(propId)
+    propId: the property to read
+    returns: the current value as a float
+        0.0 or -1.0 when the driver does not expose that property —
+        NOT an error, just an unusable number
+```
+
+Requests a camera setting, which the driver may silently decline. Always read the
+value back and print it; a webcam that advertises 1080p may deliver 720p, and a
+property that returns `0.0` means "unsupported", not "zero".
+
+```python
+capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+print(capture.get(cv2.CAP_PROP_FRAME_WIDTH), capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+```
+
+Worth knowing about focus specifically: setting `CAP_PROP_AUTOFOCUS` to 0 does not
+freeze the lens where it currently sits. Control passes to `CAP_PROP_FOCUS`, which
+may be at a default far from your subject. Reading the focus value first only works
+if the driver exposes it — guard with `if focus_value > 0:` before setting it, or a
+returned `0.0` will rack the lens to its minimum and every frame afterward will be
+unusable.
+
 ### capture.release
 
 ```
@@ -732,6 +771,31 @@ vis = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
 cv2.drawContours(vis, contours, -1, (0, 255, 0), 2)
 ```
 
+### cv2.imread
+
+```
+Function:
+cv2.imread(filename, flags=cv2.IMREAD_COLOR)
+    filename: path to the image file
+    flags: how to load it
+        cv2.IMREAD_COLOR: 3-channel BGR, drops any alpha — the default
+        cv2.IMREAD_GRAYSCALE: single channel
+        cv2.IMREAD_UNCHANGED: keeps the alpha channel if present
+    returns: a numpy array, or None if the file is missing or undecodable
+        NOTE: returns None rather than raising — the same silent-failure
+        pattern as imwrite
+```
+
+Loads an image file from disk into an array. A path string is not an image — any
+function expecting pixel data needs `imread` first, and forgetting that step
+produces errors naming the *next* function rather than this one.
+
+```python
+img = cv2.imread(path)
+if img is None:
+    raise Exception(f"Could not read {path}")
+```
+
 ### cv2.imwrite
 
 ```
@@ -754,6 +818,68 @@ debug masks. Always check the return value, since silent failure is the default.
 if not cv2.imwrite(file_location, die_crop):
     print("WARNING: failed to write", file_location)
 ```
+
+### cv2.imencode
+
+```
+Function:
+cv2.imencode(ext, img, params=None)
+    ext: format extension INCLUDING the dot — ".png", ".jpg"
+        ".png": lossless, larger payload
+        ".jpg": smaller and faster to transmit
+    img: the numpy array to encode
+    params: format options, e.g. [cv2.IMWRITE_JPEG_QUALITY, 90]
+    returns: (success, buffer)
+        success: bool
+        buffer: a numpy array of encoded bytes — call .tobytes() on it
+```
+
+The in-memory twin of `imwrite`: same encoding, no disk. Needed when handing an
+image to an API that wants file bytes rather than an array, such as a vision model.
+
+```python
+success, buffer = cv2.imencode('.jpg', img)
+if not success:
+    raise Exception("Failed to encode image")
+image_bytes = buffer.tobytes()
+```
+
+If the image is already a file on disk, skip this entirely — `open(path, "rb").read()`
+gives you the same bytes without decoding and re-encoding.
+
+---
+
+## Image quality
+
+### cv2.Laplacian
+
+```
+Function:
+cv2.Laplacian(src, ddepth, dst=None, ksize=1, scale=1, delta=0,
+              borderType=cv2.BORDER_DEFAULT)
+    src: input image, normally grayscale
+    ddepth: output depth
+        cv2.CV_64F: required so negative gradients are not clipped to 0
+        using an unsigned type here silently halves the measured detail
+    ksize: aperture size, must be odd
+    scale, delta: optional scaling applied to the result
+    returns: an image of second derivatives — high where edges are sharp
+```
+
+Measures edge intensity, and `.var()` on the result collapses it to a single
+sharpness score. This is the standard blur metric: high variance means crisp edges,
+low means smooth or out of focus.
+
+```python
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
+```
+
+Only meaningful as a *comparison* between images of the same scene — there is no
+absolute "sharp" value. In this project, autofocus-on captures scored 418 and 237
+while focus-locked ones scored 15.7 and 20.4, which settled the question
+immediately. Measure the natively-saved image, not an upscaled copy: interpolation
+smooths edges and drags the score down regardless of the true focus.
 
 ---
 
@@ -823,6 +949,30 @@ rarely what you want.
 y2 = min(roi_crop.shape[0], y + h + crop_pad)
 x2 = min(roi_crop.shape[1], x + w + crop_pad)
 ```
+
+### ndarray.copy
+
+```
+Function:
+array.copy(order='C')
+    order: memory layout of the copy — leave default
+    returns: an independent array with its own memory
+```
+
+Produces a real duplicate, needed because slices are views and OpenCV's drawing
+functions mutate in place. Drawing onto a shared array makes marks permanent, so an
+undo can remove a point from your list while its dot stays on screen.
+
+```python
+while True:
+    display = frame.copy()      # fresh canvas every iteration
+    for p in points:
+        cv2.circle(display, tuple(p), 4, (0, 255, 0), -1)
+```
+
+Distinct from `dict.copy()` despite the identical name — and note that
+`cvtColor`, `absdiff`, and `resize` all allocate new arrays anyway, so results from
+those are already independent.
 
 ### Array slicing
 
@@ -1055,6 +1205,36 @@ with open(CONFIG_PATH, "w") as f:
     json.dump(cfg, f, indent=4)
 ```
 
+### glob.glob
+
+```
+Function:
+glob.glob(pathname, *, root_dir=None, dir_fd=None, recursive=False,
+          include_hidden=False)
+    pathname: the wildcard pattern to match
+        "*": any run of characters within one path component
+        "?": exactly one character
+        "[0-9]": one character from the set
+        "**": recursive descent — only when recursive=True
+    root_dir: directory the pattern is relative to
+        None: the current working directory
+    recursive: enables "**"
+    returns: a LIST of matching path strings
+        order is arbitrary, NOT alphabetical
+        an empty list if nothing matches — it does not raise
+```
+
+Finds files by wildcard, the programmatic form of `dir *.png`. An empty result looks
+identical to a working script that found nothing, so anchor the pattern to a known
+directory rather than relying on the working directory.
+
+```python
+for path in sorted(glob.glob(os.path.join(CAPTURE_DIR, "*.png"))):
+    img = cv2.imread(path)
+```
+
+The `pathlib` equivalent is a method on the directory: `Path(CAPTURE_DIR).glob("*.png")`.
+
 ### pathlib.Path
 
 ```
@@ -1179,6 +1359,61 @@ x1 = max(0, x - crop_pad)
 x2 = min(roi_crop.shape[1], x + w + crop_pad)
 ```
 
+### sorted
+
+```
+Function:
+sorted(iterable, *, key=None, reverse=False)
+    iterable: any sequence
+    key: a function applied to each item; sorting uses its result
+    reverse: descending order when True
+    returns: a NEW list — the original is unchanged
+        contrast with list.sort(), which sorts in place and returns None
+```
+
+Puts an iterable into a predictable order, which matters for anything whose order is
+undefined — `glob.glob` results, dictionary iteration, set contents. Timestamped
+filenames in `YYYYMMDD_HHMMSS` form sort chronologically under a plain alphabetical
+sort, which is the reason to name files that way.
+
+```python
+for path in sorted(glob.glob("captures/*.png")):
+    ...
+```
+
+### try / except
+
+```
+Syntax:
+try:
+    <code that might fail>
+except <ExceptionType>:
+    <what to do about it>
+    the exception TYPE goes on the except line itself
+    a bare `except:` catches everything — including KeyboardInterrupt
+        and SystemExit, so Ctrl+C gets swallowed
+    multiple types: except (ValueError, TypeError):
+finally:
+    <runs whether or not an exception occurred — for cleanup>
+```
+
+Handles the failures that *do* raise, as opposed to the OpenCV calls that return
+sentinels. Catch the specific type you expect; a bare `except` hides bugs by
+swallowing errors you would rather see.
+
+```python
+try:
+    value = int(response.strip())
+except ValueError:
+    value = None        # unparseable — abstain rather than guess
+```
+
+Exception types worth knowing here: `json.JSONDecodeError` for a corrupt config,
+`ValueError` from `int()` on non-numeric text and from `max()` on an empty sequence,
+`StatisticsError` from `stdev` with under two samples, `FileNotFoundError` from
+`open`. `finally` is the right home for `capture.release()`, since it runs even when
+the program exits by exception.
+
 ### ord
 
 ```
@@ -1235,3 +1470,50 @@ camera or a blocking window as a side effect.
 if __name__ == "__main__":
     codeTester()
 ```
+
+---
+
+## Vision model calls
+
+### ollama.generate
+
+```
+Function:
+ollama.generate(model, prompt=None, images=None, options=None, stream=False,
+                format=None, system=None, keep_alive=None)
+    model: the model tag, e.g. "qwen2.5vl:7b"
+        must already be pulled — check with `ollama list`
+    prompt: the instruction text
+    images: a LIST of images — bytes, base64 strings, or file paths
+        the list allows several images per prompt; a single image
+        still needs the [ ] wrapper
+        .webp is not decoded — convert to .png/.jpg first
+        paths containing spaces are a recurring source of trouble;
+        passing bytes avoids the whole category
+    options: sampling parameters, e.g. {"temperature": 0}
+        temperature 0 makes repeated calls more consistent, which
+        matters when voting across frames
+    stream: False returns one complete response; True yields chunks
+    format: "json" constrains output to valid JSON
+    returns: a response object — text is at response.response
+        the older chat API returns it at response["message"]["content"]
+```
+
+Sends a prompt plus images to a locally-hosted model. The reply is always a
+**string**, so convert at the boundary and treat unparseable output as an abstain
+rather than letting it flow downstream as text.
+
+```python
+success, buffer = cv2.imencode('.jpg', upscaled)
+response = ollama.generate(
+    model="qwen2.5vl:7b",
+    prompt="...Reply with only the number. If you cannot identify it, reply UNKNOWN",
+    images=[buffer.tobytes()],
+)
+```
+
+Two prompt-design notes learned here: never give the model a *valid-looking* default
+for failure cases ("if unsure, reply 20"), because it makes failures indistinguishable
+from real answers and uncountable. And a model reading a flat image has no notion of
+"the top" of a die — "the face directly facing the camera, in the centre of the
+image" is something it can actually act on.

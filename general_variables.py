@@ -1,6 +1,7 @@
 error_margin = 2
-roll_dwell = 0.5
-occupancy_threshold = 1000
-partial_occupancy_min = 500
+roll_dwell = 1.0
+occupancy_threshold = 500
+partial_occupancy_min = 200
 outlier_occupancy = 10000
 crop_pad = 10
+upscale_val = 4

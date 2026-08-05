@@ -5,22 +5,6 @@ from settle_detector import *
 import numpy as np
 from general_variables import *
 
-def selectRoi():
-    counter = 0
-    active = True
-    while active == True:
-        ret, frame = capture.read()
-        if ret is False:
-            raise Exception("Camera read error")
-        counter+=1
-        if counter >= 30:
-            roi = cv2.selectROI("Calibration Window", frame, showCrosshair=True, fromCenter=False)
-            if roi[2] == 0 or roi[3] == 0: #user cancelled
-                return None
-            
-            active = False
-
-            return [int(v) for v in roi]
 
 def firstRunROIConfig():
     cfg = loadConfig()
@@ -64,10 +48,10 @@ def multiPoint():
 
         for p in points:
             cv2.circle(display, tuple(p), 4, (0, 255, 0), -1)
-        if len(points) >= 2:
+        if len(points) <= 2:
             cv2.polylines(display, [np.array(points, dtype=np.int32)], False, (0, 255, 0), 2)
-        if len(points) >= 2:
-                    cv2.polylines(display, [np.array(points, dtype=np.int32)], True, (0, 255, 0), 2)
+        elif len(points) > 2:
+            cv2.polylines(display, [np.array(points, dtype=np.int32)], True, (0, 255, 0), 2)
         
 
         cv2.imshow("dice cam", display)
@@ -87,7 +71,7 @@ def multiPoint():
 def buildTrayGeometry(cfg):
     pts = np.array(cfg["roi_points"], dtype=np.int32)
     x, y, w, h = cv2.boundingRect(pts)
-    poly_mask = np.zeroes((h, w), dtype=np.uint8)
+    poly_mask = np.zeros((h, w), dtype=np.uint8)
     cv2.fillPoly(poly_mask, [pts - [x, y]], 255)
     return [x, y, w, h], poly_mask
 

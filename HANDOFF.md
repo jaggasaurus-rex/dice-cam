@@ -1,7 +1,17 @@
 # dice-cam — Handoff Summary
 
-Status as of 2026-07-27. No code has been changed yet. Everything below is a
-design decision reached in discussion; the implementation is still to be written.
+Status as of 2026-08-04.
+
+**Where the project stands:** build-order stages 1–3 are built and working. The
+program detects a settled die, confirms the tray is occupied, crops tightly to the
+die, and saves a PNG. What it cannot yet do is read the number. Stage 4 (the VLM
+path) is in progress and currently blocked on image quality — see "Physical
+constraints discovered" below, which is the most important new section for a fresh
+agent to read.
+
+Sections describing design decisions still hold unless marked otherwise. Anything
+marked **DONE**, **CLOSED**, or **Parked** reflects work already completed or
+deliberately deferred — do not re-litigate those.
 
 ## Security status — RESOLVED (verified at commit `6872ef3`)
 
@@ -17,32 +27,54 @@ recorded here so it is not re-raised as an open item.
 - **`test.py` untracked.** `git rm --cached` was applied; it no longer appears
   in `git ls-files`.
 
-### Remaining hygiene item (not a security issue)
+### Hygiene item — CLOSED 2026-07-30
 
-`__pycache__/` is still tracked — all seven `.pyc` files appear in
-`git ls-files`, including stale `discord.cpython-313.pyc` and
-`frame_processing.cpython-313.pyc` from modules that no longer exist. Two
-stacked causes:
+`__pycache__/` tracking and the `.gitignore` typo (`__pychache__/`) are both
+fixed. `git check-ignore -v` confirms the rules for `test.py`, `__pycache__/`, and
+`config.json` all fire, and nothing matching them appears in `git ls-files`.
 
-1. **Typo in `.gitignore:2`** — reads `__pychache__/` (the `a` and `c` are
-   transposed). `git check-ignore` confirms nothing is being ignored.
-2. Already-tracked files are unaffected by `.gitignore` regardless, so it also
-   needs `git rm -r --cached __pycache__`.
-
-No secrets involved — just repo noise.
+Note `HANDOFF.md` is listed in `.gitignore` but is **already tracked**, so the
+entry has no effect. Harmless and arguably desirable for a design doc — recorded
+so it is not mistaken for a broken ignore rule.
 
 ### Forward-looking: consolidate secrets into the config file
 
 The live webhook is currently plaintext in an untracked file, which is one
-accidental `git add -f` from re-leaking. The design already calls for a config
-file to persist ROI and calibration data — **put the webhook URL there too**.
-One gitignored `config.json` holding all runtime settings, rather than a
-separate mechanism. Fold this into the config-persistence step.
+accidental `git add -f` from re-leaking. `config.json` now exists and is
+gitignored, with a `webhook_url` key already present in `DEFAULTS` (currently
+`None`). **Move the URL there** when `interface.py` is rewired — one gitignored
+file holding all runtime settings, rather than a separate mechanism.
 
 ## How to work with Tyler on this
 
-Tyler writes the code by hand. Provide guidance, design sketches, review, and
-quick checks — do not implement features directly unless explicitly asked.
+**This is an educational project. Do not write or edit any of the project's code —
+ever, including when asked to "just fix it".** Tyler writes every line by hand;
+editing for him removes the entire point. Provide guidance, design sketches,
+review, diagnosis, and quick checks. Report findings with file and line number and
+describe the fix in enough detail that typing it is trivial.
+
+Two carve-outs, both documentation rather than code: `HANDOFF.md` and
+`toolguide.md` are yours to maintain when asked.
+
+Six project-scoped skills in `.claude/skills/` encode the recurring patterns from
+past sessions, each with the read-only constraint built in. They should trigger on
+their own; if one seems relevant and has not fired, invoke it explicitly.
+
+| Skill | Fires on |
+|---|---|
+| `opencv-silent-failure-audit` | cv2 code review, "works but the output is wrong", blank images, ignored camera properties |
+| `derive-threshold-from-data` | "what should I set this to", detector over/under-firing, a constant that broke after a change |
+| `constant-vs-config-triage` | adding a tunable, "where should this live", "had to re-tune again" |
+| `cv-pipeline-visual-debug` | wrong crop/mask/detection with no error |
+| `python-api-explainer` | "explain X", "how do I use Y", or before recommending an unfamiliar function |
+| `module-hygiene-check` | after splitting files, ImportError, "running the old version" |
+
+**Re-read files from disk before reviewing them**, including files already read
+earlier in the session. This has bitten before: a confident report of duplicate
+functions was based on a stale copy, and Tyler had already migrated them.
+
+Provide guidance, design sketches, review, and quick checks — do not implement
+features directly.
 
 **Response style:** concise, direct, bullet points over paragraphs, no
 sycophancy. He pushed back on vagueness in a previous session and explicitly
@@ -102,24 +134,32 @@ Output channels: tkinter desktop GUI + Discord webhook post.
 
 ## Current codebase
 
-| File | Role |
-|---|---|
-| `MAIN.py` | Entry point, calls `userWindow()` |
-| `interface.py` | tkinter UI, polling loop, Discord toggle |
-| `live_frame.py` | OpenCV capture, crop, threshold, roll detection |
-| `ollama_func.py` | VLM call (`qwen2.5vl:7b` via ollama) |
-| `discord_webhook.py` | Webhook POST (renamed from `discord.py`) |
-| `ui_vars.py` | Grid coordinate constants |
-| `quick_functions.py` | A `toggle` helper |
-| `test.py` | Scratch — old tkinter demo + dead pip-counting code |
+| File | Role | State |
+|---|---|---|
+| `MAIN.py` | Entry point — config → geometry → calibration → detection loop | current |
+| `camera.py` | The single shared `VideoCapture`, plus resolution/focus settings | current |
+| `config.py` | `CONFIG_PATH`, `DEFAULTS`, `loadConfig` / `saveConfig` / `writeEntryToConfig` | current |
+| `general_variables.py` | Tunable constants (see the "hardcoded constants" note) | current |
+| `frame_initialization.py` | Polygon picker (`multiPoint`, `onMouse`), `firstRunROIConfig`, `buildTrayGeometry`, `occupancyCount` | current |
+| `settle_detector.py` | `frameConversion`, `frameDiff`, `cropToRoi`, `frameNoise`, `cameraCalibration`, `dieRollDetection` | current |
+| `capture_generator.py` | `saveSingleFrame`, `grabProcessedFrame`, capture directory | current |
+| `ollama_func.py` | VLM call (`qwen2.5vl:7b`) — being tested, not yet wired into `MAIN.py` | in progress |
+| `interface.py` | tkinter UI — **broken by design**, still built on the deleted `pipCount` and value-change detection. Rewritten wholesale at build-order step 6 | stale |
+| `discord_webhook.py` | Webhook POST (renamed from `discord.py`) | untouched |
+| `ui_vars.py` | Grid coordinate constants | untouched |
+| `quick_functions.py` | A `toggle` helper — unused | untouched |
+| `toolguide.md` | 63-entry reference of every function used, in the `Function:` format below | maintained |
+| `archive/live_frame.py` | Retired Phase-1 detection code — salvage reference only | archived |
+| `archive/test.py` | Scratch holding pen; **untracked** (holds the live webhook URL) | archived |
+| `config.json` | Per-user runtime state — gitignored, generated | generated |
+| `captures/` | Saved die crops — gitignored | generated |
 
-### `live_frame.py` is being retired
+**Do not import from `archive/`.** Both files run code at module scope and will
+open cameras or blocking windows on import.
 
-Tyler's decision: `live_frame.py` outgrew its original scope and now holds code
-unlikely to survive the redesign. He plans to **archive the file and start fresh
-in a new module** when he begins the new detection work. Do not plan
-refactors-in-place against it — treat the design below as specifying a new file,
-and treat `live_frame.py` as a reference to salvage from, not a base to edit.
+`live_frame.py` was retired as planned — its `findTop`, `newRollDetector`, and
+whole-frame Otsu `cropFrame` are all superseded. Treat it as a salvage reference,
+never a base to edit.
 
 ## Phase 1 works: d6 pip counting is functional
 
@@ -184,7 +224,7 @@ classifier route is chosen:
 - **Known risk, unverified:** touching digits. If "1" and "7" touch,
   `findContours` returns a single blob and the split fails.
 
-### Unresolved architectural fork — decide before building stage 3
+### Unresolved architectural fork — decide before building stage 5 (k-NN)
 
 These two routes are incompatible and a new agent should not silently assume
 either:
@@ -200,7 +240,7 @@ either:
 Three stages. Stages 1 and 2 generalize across cameras for free; stage 3 is
 where the real difficulty lives.
 
-### 1. Settle detection (camera-agnostic — plan is settled)
+### 1. Settle detection (camera-agnostic) — BUILT
 
 Per-frame mean absolute difference against the previous frame, over the ROI,
 normalized by frame size. When it stays under threshold for ~0.5s *after having
@@ -238,14 +278,96 @@ per-pixel cutoff. Drop-in replacement for the body of `frameDiff` — the floor,
 `error_margin`, and state machine all work unchanged, but `error_margin` needs
 re-tuning because the units change from brightness-delta to pixel count.
 
-### 2. Locate and crop the die
+### Parked: occupancy thresholds are hardcoded constants
 
-- **One-time user ROI drag** (`cv2.selectROI` or a tkinter canvas), saved to a
-  config file. One click-and-drag on first launch — not a rig requirement — and
-  it eliminates the "largest contour in the whole scene" failure mode.
-- Capture a **background model of the empty table** during calibration, then
-  background-subtract rather than Otsu-thresholding the world.
-- Sanity-check the resulting blob's area and aspect ratio before accepting it.
+The occupancy bands live in `general_variables.py` as fixed integers
+(`partial_occupancy_min`, `occupancy_threshold`, `outlier_occupancy`, plus
+`error_margin`, `roll_dwell`, `crop_pad`). They were picked by reading printed
+values off Tyler's own rig, so they encode his camera distance, die size, and
+tray. They will not transfer to another user's setup.
+
+Two ways out, not mutually exclusive:
+
+- **Derive them at calibration.** The settle threshold already self-tunes from
+  observed noise; occupancy should do the same. Ask the user to place the die in
+  the tray during calibration, measure its pixel coverage once, and set
+  `occupancy_threshold` to roughly half that, `partial_occupancy_min` to a
+  small fraction, and `outlier_occupancy` to ~3x. This adapts to camera
+  distance and die size for free, matching how the motion threshold works.
+- **Make them user-configurable.** Move them out of `general_variables.py` into
+  `config.json` and expose them in a settings menu, so the numbers survive
+  between sessions and can be corrected by hand when auto-derivation is off.
+
+The right answer is probably both: auto-derive at calibration, write the result
+to `config.json`, and let the settings menu override it. Note that
+`general_variables.py` is the correct home for genuine constants — values Tyler
+chooses and commits — whereas anything measured from a user's rig belongs in
+`config.json`. These three currently sit on the wrong side of that line.
+
+Deferred deliberately; the hardcoded values are fine for single-rig development.
+
+### 2. Locate and crop the die — BUILT
+
+- **One-time polygon selection**, not a rectangle drag. Most dice trays are
+  hexagonal; a bounding rectangle includes the corner wedges and their tray-wall
+  reflections and shadow in every measurement. `multiPoint` collects clicked
+  points via `cv2.setMouseCallback`, with `z` to undo and ESC to cancel.
+- **Background model of the empty tray** captured during calibration — it is the
+  last frame `frameNoise` processes, already cropped/gray/blurred so it matches
+  everything compared against it. Occupancy is then `absdiff` against it,
+  thresholded, intersected with the polygon mask, and counted.
+- **Tight crop**: `findContours` on the occupancy mask → largest by area →
+  `boundingRect` → padded and clamped. Note the clamps need `max(0, ...)` for
+  lower bounds and `min(shape[N], ...)` for upper; using `max` for both was a real
+  bug here and produces a crop that always runs to the image edge.
+- **Sanity checks are still NOT implemented.** Aspect ratio (reject `w/h` outside
+  ~0.6–1.6) and contour count would catch die-plus-shadow, two dice, and the
+  fragment captures described below. This is the highest-value unbuilt item in
+  this stage.
+
+### Physical constraints discovered — read before proposing image fixes
+
+These are properties of the setup, not bugs, and they bound what any classifier
+can do. Several rounds were spent rediscovering them.
+
+**Resolution is maxed; distance is fixed.** `camera.py` requests 1920×1080 and the
+readback confirms it. The camera must sit far enough back for a standard six-sided
+dice tray to fit in frame, and moving closer is **not an option** — that distance
+is the design target, not a temporary state. The result: a die crop is roughly
+**130×130 px**, and the top-face numeral about **30 px tall**.
+
+This matters strategically. A VLM has to *read* the numeral, which needs enough
+pixels to resolve strokes. k-NN on embeddings does not read anything — it matches
+whole-face appearance against examples labelled on the user's own rig, and a 30px
+numeral is a perfectly distinctive pattern even when it is not legible as text. The
+distance constraint therefore **strengthens the already-chosen plan A** rather than
+blocking it.
+
+**Upscaling does not add information.** `cv2.resize(..., fx=4, INTER_CUBIC)` before
+the VLM call can help, because vision models tile images into patches and a small
+image gets coarsely sampled. But it invents nothing. Judge sharpness on the
+natively-saved PNG, never the upscaled copy.
+
+**Autofocus must stay ON.** Locking focus was tried and failed badly. Setting
+`CAP_PROP_AUTOFOCUS` to 0 does not freeze the lens where it sits — control passes
+to `CAP_PROP_FOCUS`, and this webcam returns `0.0` from `capture.get` for that
+property, so the "captured" value racked the lens to minimum. Measured with
+Laplacian variance: **418 and 237 with autofocus on, 15.7 and 20.4 locked** — the
+locked images were unreadable mush. If focus locking is revisited, guard with
+`if focus_value > 0:` and verify with the sharpness metric.
+
+A better version exists if it becomes necessary: sweep `CAP_PROP_FOCUS` across its
+range, measure `cv2.Laplacian(gray, cv2.CV_64F).var()` at each step, and keep the
+highest. That focuses on *die height specifically*, which autofocus cannot know to
+do. Note the empty-tray calibration has nothing at die height to focus on, so this
+would need the die present.
+
+**Contrast between die and tray is a hard requirement.** A translucent die closely
+matching the tray colour produced fragmentary masks — captures of 33×42 and 39×40
+px, i.e. pieces of a die, saved as valid rolls. Background subtraction can only
+find what differs from the reference; this is a limitation of the approach, not a
+tuning problem. A "your die is too close in colour to your tray" check during
+calibration would be the honest way to surface it.
 
 ### 3. Classify the numeral — the real decision
 
@@ -278,6 +400,34 @@ reliable. Options considered:
 Rejected outright: **OCR** (Tesseract/EasyOCR). Numerals land at arbitrary
 rotation and it hallucinates on 6/9/8.
 
+#### VLM path — results so far (stage 4, in progress)
+
+`ollama_func.py` now takes a **numpy array**, upscales it, encodes to JPEG, and
+calls `ollama.generate`. The prompt was fixed to reply `UNKNOWN` on failure rather
+than the old "reply 20", which had made failures indistinguishable from real
+answers and therefore uncountable. Output is coerced with `int()` inside a
+`try/except ValueError`, and an unparseable reply becomes an abstain.
+
+**Accuracy so far is poor**, but no clean measurement exists yet. The tests run to
+date were contaminated:
+
+- The first batch was ~70×70 px per die — numerals ~13 px, unreadable by a human
+  reviewer too.
+- A later batch of eight included three fragment captures from the translucent die,
+  i.e. three unanswerable inputs counted as failures.
+- Some reads came from *side* faces, which is partly resolution and partly that a
+  model looking at a flat image has no notion of "the top". Prompt wording like
+  "the face directly facing the camera, in the centre of the image" is actionable
+  where "the very top" is not.
+
+**The measurement still owed:** run the VLM against ~10 sharp, whole-die captures
+of the opaque die and record **correct / wrong / UNKNOWN separately**. Count 6-vs-9
+confusions separately again, since the handoff already treats those as unsolvable
+in general and they should not count against the model the way a 14-read-as-4 does.
+
+Only after that number exists is it worth deciding whether to build the 3–5 frame
+voting layer, or to treat C as a weak fallback and move effort to A.
+
 ## GUI decisions already made (tkinter)
 
 - **No always-on camera feed.** Displaying live video was debug-only and was
@@ -296,13 +446,6 @@ rotation and it hallucinates on 6/9/8.
 - Tkinter owns the loop: `root.after(ms, func)` with the function rescheduling
   itself. No `while True`. Do not `return` values from an `.after` callback —
   nothing catches them; write to a `StringVar` or `label.config(...)` instead.
-
-## Open question — camera position (still unanswered)
-
-Whether the camera is mounted **overhead or at an angle** was asked twice in a
-previous session and never confirmed. It materially affects top-face isolation,
-crop geometry, and how much foreshortening the classifier must tolerate.
-**Ask Tyler before building stage 2.**
 
 ## Two constraints to design in from the start
 
@@ -334,10 +477,10 @@ make in place.
 - `quick_functions.py` — `toggle` rebinds a local, return value unused;
   `interface.py` has its own inline version
 
-**Note on `test.py` — temporary, and slated for deletion.** Tyler's stated
-intent: it is a holding pen for code and text he may want to reuse elsewhere,
-and **the entire file will be deleted** once he is satisfied the new detection
-work stands on its own. Accordingly:
+**Note on `test.py` — now at `archive/test.py`, still slated for deletion.**
+Tyler's stated intent: it is a holding pen for code and text he may want to reuse
+elsewhere, and **the entire file will be deleted** once he is satisfied the new
+detection work stands on its own. Accordingly:
 
 - It **will not run** — it references `cv2`, `math`, `feed`, and `ollamaCall`
   without importing any of them. This is expected. Do not report it as a bug and
@@ -348,11 +491,11 @@ work stands on its own. Accordingly:
 - Treat it as read-only salvage material until Tyler nukes it.
 
 **Rework:**
-- `cropFrame` — user ROI + calibration-time background model + sanity checks
-- `refresh` (`interface.py:54-72`) — drive off settle events, not value changes
-- `ollama_func.py` prompt — currently says "if it's a non-number symbol reply
-  20", which silently masks failures. Should reply `UNKNOWN` so failures can be
-  detected and counted.
+- ~~`cropFrame`~~ **DONE** — replaced by polygon ROI + background model + contour
+  crop. Sanity checks still outstanding (see known bugs).
+- `refresh` (`interface.py:54-72`) — drive off settle events, not value changes.
+  Still outstanding; this is build-order step 6.
+- ~~`ollama_func.py` prompt~~ **DONE** — now replies `UNKNOWN` on failure.
 
 **Keep as-is:**
 - `MAIN.py`, `ui_vars.py`, the tkinter layout in `interface.py`
@@ -371,19 +514,59 @@ zero-setup path *and* the calibration auto-labeler.
    the system should not have to handle both simultaneously.
 1. ~~Settle detector with adaptive threshold, in a new module~~ **DONE** —
    `settle_detector.py`
-2. ~~ROI selection + config persistence~~ **DONE** — `cv2.selectROI` saved to a
+2. ~~ROI selection + config persistence~~ **DONE**, and upgraded past a
+   rectangle. `cv2.selectROI` was replaced with a click-to-place **polygon**
+   picker (`multiPoint` in `frame_initialization.py`, built on
+   `cv2.setMouseCallback`) because most dice trays are hexagonal — a bounding
+   rectangle includes the corner wedges, contributing tray-wall reflections and
+   shadow to every measurement. Points are stored as `roi_points` in a
    gitignored `config.json` via `config.py` (`loadConfig` / `saveConfig` /
-   `writeEntryToConfig`). `loadConfig` merges the file over `DEFAULTS.copy()`
+   `writeEntryToConfig`); `loadConfig` merges the file over `DEFAULTS.copy()`
    so configs written before a new key was added self-heal instead of
-   `KeyError`-ing. Frames are sliced to the ROI right after `capture.read()`,
-   before conversion, so the helpers needed no changes.
-3. Capture script (settle → crop → save), which doubles as the calibration
-   data collector — **NEXT**
-4. VLM voting path — gives a working end-to-end product
+   `KeyError`-ing. The old `roi` key was dropped — `buildTrayGeometry` derives
+   the bounding rect from the points with `cv2.boundingRect`, so there is one
+   source of truth and the two cannot drift. It also builds a `poly_mask` via
+   `cv2.fillPoly` (points shifted by the bbox origin into crop-local space),
+   threaded through `frameDiff` as `cv2.mean`'s mask and intersected into the
+   occupancy mask with `cv2.bitwise_and`.
+3. ~~Capture script (settle → crop → save), doubling as the calibration data
+   collector~~ **DONE** — `capture_generator.py`. `MAIN.py` consumes settle events
+   from the `dieRollDetection` generator, measures occupancy, branches on the
+   three bands, tightens the crop via contours, and saves a PNG to `captures/`.
+   Note `dieRollDetection` **yields**; it originally used `return "SETTLE"`, and
+   because a `for` loop over a returned string iterates its six characters, one
+   roll produced six events. That symptom looked exactly like detector instability
+   and cost real time — worth remembering if repeated events reappear.
+4. VLM voting path — **IN PROGRESS.** Single-call path works; see "VLM path —
+   results so far" above. Blocked on getting a clean accuracy baseline before
+   building the voting layer.
 5. Embedding + k-NN classifier and the calibration wizard UI
-6. Rewire `interface.py` to consume settle events
+6. Rewire `interface.py` to consume settle events, and move `webhook_url` into
+   `config.json`
 
-Each stage is independently testable, which the current pipeline is not.
+Each stage is independently testable, which the original pipeline was not.
+
+## Known bugs and unbuilt guards — current
+
+None of these block progress; all were identified and left. Ranked:
+
+1. **Occupancy bands are stale.** `occupancy_threshold=500`, `partial_occupancy_min=200`,
+   `outlier_occupancy=10000` were tuned before the resolution change and before the
+   camera moved. Pixel counts roughly quadrupled, so fragments now pass as valid
+   rolls. Re-derive from printed values before trusting any capture set. This is
+   the third re-tune — see the "Parked: occupancy thresholds" section.
+2. **Aspect-ratio and contour-count sanity checks unbuilt.** Would catch the
+   fragments, die-plus-shadow, and two-dice cases as honest abstains.
+3. **`capture.release()` is never called.** `MAIN.py` has no `try/finally`, so the
+   camera stays held after an exception or Ctrl+C, and the next run may fail to
+   open it.
+4. **`cv2.imwrite` return value unchecked** in `capture_generator.py`. It returns
+   `False` rather than raising, so a bad path loses captures silently.
+5. **Timestamp collision.** `time.strftime('%Y%m%d_%H%M%S')` has one-second
+   resolution; two captures in the same second overwrite silently. Matters during
+   a 40–60 roll calibration collection.
+6. **Dead code:** `displayWindow` in `settle_detector.py`; `result = 0.0` in
+   `dieRollDetection`, overwritten before it is read.
 
 ## Open threads
 
@@ -391,8 +574,21 @@ Each stage is independently testable, which the current pipeline is not.
   nothing matching `__pycache__`/`config.json`/`test.py` appears in
   `git ls-files`, and `git check-ignore -v` confirms all three rules fire.
 - ~~Camera position~~ **CLOSED** — overhead; see build order step 0.
-- Per-digit vs. whole-face classification — fork not yet decided
-- Whether d6 pip mode is kept alongside d20 — assumed yes, not confirmed
+- **Per-digit vs. whole-face classification — fork still not decided.** Note it
+  does not block stage 4: a VLM reads whatever crop it is given. It must be decided
+  before stage 5. The physical constraints above argue for whole-face — at 30px,
+  segmenting individual digits is far less viable than matching the face as a
+  single pattern.
+- Whether d6 pip mode is kept alongside d20 — assumed yes, not confirmed. The pip
+  code now lives only in `archive/test.py`, which is untracked; if that mode is
+  wanted, the `SimpleBlobDetector` block needs rescuing before the file is deleted.
+- **A clean VLM accuracy baseline** on sharp whole-die captures — the immediate
+  next measurement, described under "VLM path — results so far".
 - Tyler was offered, and has not yet taken up, a detailed sketch of either the
   calibration flow's state machine or the settle detector's adaptive threshold
-  logic
+  logic.
+- **Calibration is accumulating jobs.** It currently measures the noise floor and
+  captures the background. Proposed additions, all wanting the die present in the
+  tray: derive the occupancy bands, lock focus by sharpness sweep, check die/tray
+  colour contrast, and ask the 6-vs-9 underline question. Worth designing as one
+  coherent flow rather than bolting each on separately.
