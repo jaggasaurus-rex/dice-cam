@@ -1,6 +1,6 @@
 from settle_detector import cameraCalibration, dieRollDetection, cropToRoi
 from frame_initialization import firstRunROIConfig, occupancyCount, buildTrayGeometry, grabProcessedFrame
-from capture_generator import  saveSingleFrame
+from capture_generator import  saveSingleFrame, sharpestFrame
 from general_variables import *
 from config import *
 from camera import capture
@@ -14,9 +14,10 @@ def main():
         #saveSingleFrame(background)
 
         for event in dieRollDetection(threshold, roi, poly_mask):
-            ret, frame = capture.read()
-            if ret is False:
-                raise Exception("Camera read error")
+            frame, score = sharpestFrame(roi)
+            if score < sharpness_floor:
+                print(f"Focus lost ({score:.0f}) - roll again")
+                continue
             processed_frame = grabProcessedFrame(frame, roi)
             mask, occupancy_count = occupancyCount(processed_frame, background, poly_mask)
             if occupancy_count > partial_occupancy_min and occupancy_count < occupancy_threshold:
@@ -34,6 +35,7 @@ def main():
                 x2 = min(roi_crop.shape[1], x + w + crop_pad)
                 die_crop = roi_crop[y1:y2, x1:x2]
                 saveSingleFrame(die_crop)
+                print(score)
             elif occupancy_count >= outlier_occupancy:
                 print("Object obscuring camera. Roll again.")
     finally:

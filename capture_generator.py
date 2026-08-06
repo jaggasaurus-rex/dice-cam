@@ -24,4 +24,21 @@ def generateAndSaveFrame(roi):
 
     cropped_frame = cropToRoi(frame, roi)
     cv2.imwrite(file_location, cropped_frame)
-    
+
+
+def sharpness(frame, roi):
+    gray = cv2.cvtColor(cropToRoi(frame, roi), cv2.COLOR_BGR2GRAY)
+    return cv2.Laplacian(gray, cv2.CV_64F).var()
+
+def sharpestFrame(roi, count=8):
+    best_frame = None
+    best_score = -1.0
+    for _ in range(count):
+        ret, frame = capture.read()
+        if ret is False:
+            raise Exception("Camera read error")
+        score = sharpness(frame, roi)
+        if score > best_score:
+            best_score = score
+            best_frame = frame
+    return best_frame, best_score
