@@ -9,6 +9,7 @@ import glob
 import os
 
 import cv2
+import numpy as np
 import pytest
 
 from conftest import CAPTURES_DIR
@@ -56,10 +57,30 @@ def test_sharpness_is_consistent_across_the_set():
     )
 
 
-@pytest.mark.skipif(not PATHS, reason="no captures to audit")
-def test_no_timestamp_collisions():
-    """saveSingleFrame names files to one-second resolution; two captures in the
-    same second overwrite each other, so a collision is invisible in the file
-    list. This asserts the filenames are at least unique per second."""
-    stems = [os.path.basename(p) for p in PATHS]
-    assert len(stems) == len(set(stems))
+def test_rapid_saves_do_not_overwrite_each_other(tmp_path, monkeypatch):
+    """Two saves inside the same second must produce two files.
+
+    Auditing captures/ cannot detect this - a collision overwrites, so the
+    survivor looks like a normal single capture. The only honest test is to
+    drive saveSingleFrame directly and count what lands on disk.
+    """
+    import capture_generator
+
+    monkeypatch.setattr(capture_generator, "capture_directory", str(tmp_path))
+    frame = np.full((40, 40, 3), 128, np.uint8)
+    for _ in range(5):
+        capture_generator.saveSingleFrame(frame)
+
+    written = list(tmp_path.glob("*.png"))
+    assert len(written) == 5, f"only {len(written)} of 5 saves survived"
+
+
+def test_save_raises_when_the_write_fails(monkeypatch):
+    """cv2.imwrite returns False rather than raising, so an unwritable path
+    loses captures silently. saveSingleFrame must surface that."""
+    import capture_generator
+
+    monkeypatch.setattr(capture_generator.cv2, "imwrite", lambda *a, **k: False)
+    frame = np.full((40, 40, 3), 128, np.uint8)
+    with pytest.raises(OSError):
+        capture_generator.saveSingleFrame(frame)

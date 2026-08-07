@@ -5,3 +5,4 @@ config.json
 captures/
 archive/
 test/
+internal_variables.py

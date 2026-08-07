@@ -1,21 +1,24 @@
 import cv2
 import os
-import time
+import datetime
 from settle_detector import *
 from config import *
 from camera import capture
 
 capture_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "captures")
+os.makedirs(capture_directory, exist_ok=True)
+
 
 def saveSingleFrame(frame):
-    os.makedirs(capture_directory, exist_ok=True)
-    file_name = f"roll_{time.strftime('%Y%m%d_%H%M%S')}.png"
+    stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    file_name = f"roll_{stamp}.png"
     file_location = os.path.join(capture_directory, file_name)
-    cv2.imwrite(file_location, frame)
+    if not cv2.imwrite(file_location, frame):
+        raise IOError(f"Failed to write capture: {file_location}")
 
 def generateAndSaveFrame(roi):
-    os.makedirs(capture_directory, exist_ok=True)
-    file_name = f"roll_{time.strftime('%Y%m%d_%H%M%S')}.png"
+    stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    file_name = f"roll_{stamp}.png"
     file_location = os.path.join(capture_directory, file_name)
 
     ret, frame = capture.read()
@@ -23,9 +26,9 @@ def generateAndSaveFrame(roi):
         raise Exception("Camera read error")
 
     cropped_frame = cropToRoi(frame, roi)
-    cv2.imwrite(file_location, cropped_frame)
-
-
+    if not cv2.imwrite(file_location, cropped_frame):
+        raise IOError(f"Failed to write capture: {file_location}")
+            
 def sharpness(frame, roi):
     gray = cv2.cvtColor(cropToRoi(frame, roi), cv2.COLOR_BGR2GRAY)
     return cv2.Laplacian(gray, cv2.CV_64F).var()

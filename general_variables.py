@@ -5,4 +5,4 @@ partial_occupancy_min = 200
 outlier_occupancy = 10000
 crop_pad = 10
 upscale_val = 4
-sharpness_floor = 60
+sharpness_floor = 40
