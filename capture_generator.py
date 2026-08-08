@@ -15,6 +15,7 @@ def saveSingleFrame(frame):
     file_location = os.path.join(capture_directory, file_name)
     if not cv2.imwrite(file_location, frame):
         raise IOError(f"Failed to write capture: {file_location}")
+    return file_location
 
 def generateAndSaveFrame(roi):
     stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')

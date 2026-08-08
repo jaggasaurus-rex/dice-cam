@@ -1,6 +1,6 @@
 ---
 name: python-api-explainer
-description: Explain a Python or OpenCV function using the full-signature format this project requires — every argument with its default, each option broken out as an indented sub-bullet, plus a generic usage example. Use this skill whenever the user asks what a function does, how to use it, what an argument means, "break this down", "explain this more thoroughly", "remind me how X works", or says they have not seen something before. Also trigger before recommending any function the user has not used yet in this project. Explain only — never write the calling code into the user's files.
+description: Explain a Python or OpenCV function using the full-signature format this project requires — every argument with its default, each option broken out as an indented sub-bullet, and always closing with a generic runnable usage example. Use this skill whenever the user asks what a function does, how to use it, what an argument means, "break this down", "explain this more thoroughly", "remind me how X works", or says they have not seen something before. Also trigger before recommending any function the user has not used yet in this project. Explain only — never write the calling code into the user's files.
 ---
 
 # Python API Explainer
@@ -39,7 +39,38 @@ cv2.threshold(src, thresh, maxval, type)
     returns: (used_threshold, output_image) — usually you want index [1]
 ```
 
-Then a two-sentence summary of what it is for, and one short generic example.
+Then a two-sentence summary of what it is for, and a generic usage example.
+
+## Always give a generic usage example — non-negotiable
+
+**Every explanation ends with a runnable example. No exceptions, not even for a
+one-argument function that seems self-evident.** The user is a visual learner and
+has said directly that seeing the call in use is what makes the signature click.
+A breakdown without an example is an incomplete answer.
+
+Rules for the example:
+
+- **Generic, not their code.** Use placeholder names (`img`, `data`, `path`) so it
+  illustrates the call rather than doing the user's typing for them. This is what
+  keeps the example on the right side of the read-only constraint.
+- **Runnable as shown.** Include the import line and whatever setup the call needs.
+  A fragment that would `NameError` teaches nothing.
+- **Show the result being used**, not just the call. `contours, _ = cv2.findContours(...)`
+  followed by a line that actually reads `contours` shows the shape of the return
+  value, which is usually the confusing part.
+- **Two examples when the options genuinely diverge.** If the flag choice changes
+  the whole usage pattern, one example per branch beats a paragraph explaining the
+  difference.
+- Keep it to roughly 3–8 lines. Past that it becomes a tutorial, not an anchor.
+
+```python
+import cv2
+
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+used, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+print(used)                       # the threshold Otsu picked for you
+count = cv2.countNonZero(mask)    # mask is what you carry forward
+```
 
 ## What makes the breakdown useful
 

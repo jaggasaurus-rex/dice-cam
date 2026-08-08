@@ -1,13 +1,27 @@
 # dice-cam — Handoff Summary
 
-Status as of 2026-08-04.
+Status as of 2026-08-07.
 
-**Where the project stands:** build-order stages 1–3 are built and working. The
+**Where the project stands:** build-order stages 1–4 are built and working. The
 program detects a settled die, confirms the tray is occupied, crops tightly to the
-die, and saves a PNG. What it cannot yet do is read the number. Stage 4 (the VLM
-path) is in progress and currently blocked on image quality — see "Physical
-constraints discovered" below, which is the most important new section for a fresh
-agent to read.
+die, saves a sharp PNG, and — as of 2026-08-07 — **reads the number correctly**.
+Gemini returned 7/7 on the clean capture set with a single call per image and
+structured output. What remains is wiring the classifier into the live loop and
+rebuilding the UI (stage 6).
+
+**Two things changed materially since the last handoff, and a fresh agent should
+read both before doing anything else:**
+
+1. **The image-quality blocker is CLOSED.** Captures went from 35–363 Laplacian
+   variance (unreadable mush at the low end) to 953–2119 across three fixes. See
+   "Image quality — RESOLVED" below. Do not re-open this.
+2. **The classifier decision changed.** Local Ollama is abandoned and deleted;
+   the project is now on the **Gemini API** with a bring-your-own-key model.
+   Plan A (k-NN on embeddings) is explicitly deferred, not rejected — see
+   "Classifier decision — settled for now".
+
+There is also now a `tests/` directory. It is the one place an agent may write
+code (see "How to work with Tyler on this").
 
 Sections describing design decisions still hold unless marked otherwise. Anything
 marked **DONE**, **CLOSED**, or **Parked** reflects work already completed or
@@ -53,8 +67,17 @@ editing for him removes the entire point. Provide guidance, design sketches,
 review, diagnosis, and quick checks. Report findings with file and line number and
 describe the fix in enough detail that typing it is trivial.
 
-Two carve-outs, both documentation rather than code: `HANDOFF.md` and
-`toolguide.md` are yours to maintain when asked.
+Three carve-outs. Two are documentation rather than code: `HANDOFF.md` and
+`toolguide.md` are yours to maintain when asked. The third is **`tests/`** —
+Tyler granted permission to write unit tests there on 2026-08-05, and that
+permission is scoped to that directory only. Everything outside `tests/` remains
+hands-off.
+
+**Running things and measuring is encouraged.** Diagnosing by running the code,
+probing the camera, calling the API, and measuring real numbers has repeatedly
+been more useful than reading the source — every fix in "Image quality —
+RESOLVED" came from a measurement, not an inspection. The venv interpreter is
+`.venv/Scripts/python.exe`; `pytest` is installed.
 
 Six project-scoped skills in `.claude/skills/` encode the recurring patterns from
 past sessions, each with the read-only constraint built in. They should trigger on
@@ -92,6 +115,12 @@ moving on. He will say "next stage" when ready. Do not run ahead.
 - Then break down every token: library/module, method, each argument.
 - Options and variations go in **real indented sub-bullets** (4-space indent).
   Do not use `---` as a fake-indent prefix.
+- **Always close with a generic runnable usage example.** Not optional, and not
+  skipped for functions that look self-evident — Tyler is a visual learner and
+  has said seeing the call in use is what makes the signature click. Use
+  placeholder names rather than his variables, include the imports, and show the
+  **return value being used**, since that is usually the confusing part. Roughly
+  3–8 lines; two examples when a flag changes the whole usage pattern.
 
 Example:
 
@@ -102,6 +131,17 @@ ttk.Label(master, text=None, textvariable=None, font=None, relief=None)
     text: the string shown on the label
         text="Score": a fixed literal string
         default None: blank unless an image is set
+```
+
+```python
+import tkinter as tk
+from tkinter import ttk
+
+root = tk.Tk()
+score = tk.StringVar(value="0")
+label = ttk.Label(root, textvariable=score, font=("Arial", 48))
+label.pack()
+score.set("17")        # the label updates itself — no reconfigure needed
 ```
 
 ## Goal
@@ -142,17 +182,24 @@ Output channels: tkinter desktop GUI + Discord webhook post.
 | `general_variables.py` | Tunable constants (see the "hardcoded constants" note) | current |
 | `frame_initialization.py` | Polygon picker (`multiPoint`, `onMouse`), `firstRunROIConfig`, `buildTrayGeometry`, `occupancyCount` | current |
 | `settle_detector.py` | `frameConversion`, `frameDiff`, `cropToRoi`, `frameNoise`, `cameraCalibration`, `dieRollDetection` | current |
-| `capture_generator.py` | `saveSingleFrame`, `grabProcessedFrame`, capture directory | current |
-| `ollama_func.py` | VLM call (`qwen2.5vl:7b`) — being tested, not yet wired into `MAIN.py` | in progress |
+| `capture_generator.py` | `saveSingleFrame`, `generateAndSaveFrame`, `sharpness`, `sharpestFrame`, capture directory | current |
+| `llm_gemini.py` | Gemini API adapter — reads dice correctly; needs a real `readDie(image_bytes)` signature and 429 handling | working |
+| `ai_variables.py` | Model call tunables + the `DieReading` Pydantic schema | current |
+| `internal_variables.py` | Holds `gemini_api_key`. **Gitignored and untracked** — verified | current, temporary |
+| `tests/` | pytest suite — `conftest.py` plus 4 test modules. Agent-writable. | current |
 | `interface.py` | tkinter UI — **broken by design**, still built on the deleted `pipCount` and value-change detection. Rewritten wholesale at build-order step 6 | stale |
 | `discord_webhook.py` | Webhook POST (renamed from `discord.py`) | untouched |
 | `ui_vars.py` | Grid coordinate constants | untouched |
 | `quick_functions.py` | A `toggle` helper — unused | untouched |
-| `toolguide.md` | 63-entry reference of every function used, in the `Function:` format below | maintained |
+| `toolguide.md` | Function reference in the `Function:` format below; now includes a Gemini API section | maintained |
 | `archive/live_frame.py` | Retired Phase-1 detection code — salvage reference only | archived |
 | `archive/test.py` | Scratch holding pen; **untracked** (holds the live webhook URL) | archived |
 | `config.json` | Per-user runtime state — gitignored, generated | generated |
 | `captures/` | Saved die crops — gitignored | generated |
+
+`ollama_func.py` has been **deleted**. The local-VLM path is abandoned; see
+"Classifier decision" below. Its `ollama.generate` entry survives in
+`toolguide.md`, marked RETIRED, only for the prompt-design lessons.
 
 **Do not import from `archive/`.** Both files run code at module scope and will
 open cameras or blocking windows on import.
@@ -224,16 +271,17 @@ classifier route is chosen:
 - **Known risk, unverified:** touching digits. If "1" and "7" touch,
   `findContours` returns a single blob and the split fails.
 
-### Unresolved architectural fork — decide before building stage 5 (k-NN)
+### Architectural fork — RESOLVED 2026-08-06: whole-face
 
-These two routes are incompatible and a new agent should not silently assume
-either:
+Only relevant if plan A is revived; it does not affect the LLM path.
 
 - **Per-digit:** segment individual digits, classify each as 0–9, recombine.
   Only 10 classes, but inherits the touching-digit and ordering problems above.
-- **Whole-face:** classify the entire top-face crop as one of 20 classes. This
-  is what the k-NN plan below assumes. Sidesteps segmentation entirely, but
-  needs coverage of all 20 faces during calibration.
+  **Not chosen** — at ~30 px numeral height, segmenting strokes a few pixels
+  wide is far less viable than matching the face as one pattern.
+- **Whole-face (CHOSEN):** classify the entire top-face crop as one of 20
+  classes. Sidesteps segmentation entirely. The cost is needing coverage of all
+  20 faces during calibration — a data-collection cost, not an accuracy risk.
 
 ## Agreed architecture
 
@@ -348,13 +396,16 @@ the VLM call can help, because vision models tile images into patches and a smal
 image gets coarsely sampled. But it invents nothing. Judge sharpness on the
 natively-saved PNG, never the upscaled copy.
 
-**Autofocus must stay ON.** Locking focus was tried and failed badly. Setting
-`CAP_PROP_AUTOFOCUS` to 0 does not freeze the lens where it sits — control passes
-to `CAP_PROP_FOCUS`, and this webcam returns `0.0` from `capture.get` for that
-property, so the "captured" value racked the lens to minimum. Measured with
-Laplacian variance: **418 and 237 with autofocus on, 15.7 and 20.4 locked** — the
-locked images were unreadable mush. If focus locking is revisited, guard with
-`if focus_value > 0:` and verify with the sharpness metric.
+**Autofocus must stay ON — and you must verify it took.** Locking focus was tried
+and failed badly. Setting `CAP_PROP_AUTOFOCUS` to 0 does not freeze the lens where
+it sits — control passes to `CAP_PROP_FOCUS`, and this webcam returns `0.0` from
+`capture.get` for that property, so the "captured" value racked the lens to
+minimum. Measured with Laplacian variance: **418 and 237 with autofocus on, 15.7
+and 20.4 locked** — the locked images were unreadable mush.
+
+Separately and more insidiously: for a long time the `set(CAP_PROP_AUTOFOCUS, 1)`
+request was **silently ignored**. See "Image quality — RESOLVED" below. `camera.py`
+now pins `CAP_DSHOW` and asserts the readback. Do not revert it to `CAP_ANY`.
 
 A better version exists if it becomes necessary: sweep `CAP_PROP_FOCUS` across its
 range, measure `cv2.Laplacian(gray, cv2.CV_64F).var()` at each step, and keep the
@@ -384,49 +435,224 @@ reliable. Options considered:
 - **B — Generic YOLO detector** trained on diverse public dice datasets
   (Roboflow has D20 sets). True zero setup, but weeks of data work and lower
   accuracy on unseen die/lighting combinations. Not chosen.
-- **C — VLM** (the existing `ollama_func.py`). Its genuine strength is
-  generality: any die, any font, zero setup. Weakness is per-call reliability
-  and latency. Mitigate by **voting over 3–5 frames** captured just after
-  settle at slightly different crops, requiring agreement.
+- **C — VLM.** Its genuine strength is generality: any die, any font, zero
+  setup. Weakness is per-call reliability and latency. Mitigate by **voting over
+  3–5 frames** captured just after settle at slightly different crops, requiring
+  agreement.
 
-**Chosen plan: A as the primary path, C as the zero-setup fallback.**
+**Original plan was A primary, C fallback. As of 2026-08-07 that is inverted:
+C is the path being built, using a cloud model rather than a local one, and A is
+deferred.** See "Classifier decision — settled for now" below for the reasoning
+and the conditions under which A comes back. The rest of this section records the
+design that A would use if revived — keep it.
 
-- Launch → user drags ROI → choose "Quick start (VLM)" or "Calibrate (5 min)"
+- Launch → user drags ROI → choose "Quick start (LLM)" or "Calibrate (5 min)"
 - Quick start works immediately; slower and less reliable
-- Calibration uses the **VLM to pre-label** captured crops, so the user only
+- Calibration uses the **LLM to pre-label** captured crops, so the user only
   corrects mistakes instead of typing 60 numbers
-- After calibration, runtime switches to k-NN: fast and accurate
+- After calibration, runtime switches to k-NN: fast, accurate, and offline
 
 Rejected outright: **OCR** (Tesseract/EasyOCR). Numerals land at arbitrary
 rotation and it hallucinates on 6/9/8.
 
-#### VLM path — results so far (stage 4, in progress)
+## Image quality — RESOLVED 2026-08-06
 
-`ollama_func.py` now takes a **numpy array**, upscales it, encodes to JPEG, and
-calls `ollama.generate`. The prompt was fixed to reply `UNKNOWN` on failure rather
-than the old "reply 20", which had made failures indistinguishable from real
-answers and therefore uncountable. Output is coerced with `int()` inside a
-`try/except ValueError`, and an unparseable reply becomes an abstain.
+Captures were blurry and inconsistent. Three separate defects, all now fixed.
+Measured Laplacian variance on die crops across the three runs:
 
-**Accuracy so far is poor**, but no clean measurement exists yet. The tests run to
-date were contaminated:
+| Run | Sharpness range |
+|---|---|
+| Original (MSMF, single grab) | 35 – 363 — worst were unreadable |
+| After backend fix | 424 – 1081 |
+| After backend + best-of-N | **953 – 2119** |
 
-- The first batch was ~70×70 px per die — numerals ~13 px, unreadable by a human
-  reviewer too.
-- A later batch of eight included three fragment captures from the translucent die,
-  i.e. three unanswerable inputs counted as failures.
-- Some reads came from *side* faces, which is partly resolution and partly that a
-  model looking at a flat image has no notion of "the top". Prompt wording like
-  "the face directly facing the camera, in the centre of the image" is actionable
-  where "the very top" is not.
+**1. `CAP_ANY` resolved to MSMF, which silently dropped the autofocus request.**
+`set(CAP_PROP_AUTOFOCUS, 1)` returned `True` and the readback stayed `0.0`. Same
+silent-failure family as every other `cv2.set`. Measured side by side:
 
-**The measurement still owed:** run the VLM against ~10 sharp, whole-die captures
-of the opaque die and record **correct / wrong / UNKNOWN separately**. Count 6-vs-9
-confusions separately again, since the handoff already treats those as unsolvable
-in general and they should not count against the model the way a 14-read-as-4 does.
+```
+MSMF   set(AUTOFOCUS,1) -> True   get -> 0.0    set(FOURCC,MJPG) -> False
+DSHOW  set(AUTOFOCUS,1) -> True   get -> 1.0    set(FOURCC,MJPG) -> True
+```
 
-Only after that number exists is it worth deciding whether to build the 3–5 frame
-voting layer, or to treat C as a weak fallback and move effort to A.
+`camera.py` now pins `cv2.CAP_DSHOW` and prints a warning if the readback
+disagrees. **Never trust a `cv2.set` return value — assert on the readback.**
+
+**2. A single frame was grabbed with no sharpness check.** Frame-to-frame
+sharpness on a static scene varies only 1.30× (min 1355, max 1765, σ 88), but
+saved captures varied 10× — so the blur was *focus drift between rolls*, not
+per-frame jitter. `sharpestFrame` in `capture_generator.py` now reads 8 frames
+and keeps the highest `cv2.Laplacian(gray, cv2.CV_64F).var()`, gated by
+`sharpness_floor` in `general_variables.py` (currently 40).
+
+No `sleep` is involved and none is needed: `capture.read()` blocks until the
+camera delivers, so 8 back-to-back reads self-pace to ~0.36 s at 22 fps.
+
+Sharpness is measured on the **ROI crop**, not the die crop — deliberately.
+Laplacian variance measures *edge density*, not focus, so it is only a valid
+focus proxy when image content is held constant. The fixed ROI holds it constant;
+variable-size die crops do not. Demonstrated: a 71×86 fragment scored 1039 while
+a correctly framed but soft whole-die crop scored 424.
+
+**3. `time.strftime` collided.** One-second resolution meant rapid saves
+overwrote silently. Five `saveSingleFrame` calls in a loop produced **one** file.
+Now `datetime.now().strftime('%Y%m%d_%H%M%S_%f')`, and `cv2.imwrite`'s return
+value is checked and raises `IOError`.
+
+### Classifier decision — settled for now (2026-08-07)
+
+**Ollama is abandoned.** Accuracy on d20 numerals was poor at every local model
+tried; `ollama_func.py` is deleted. Do not propose a local VLM again.
+
+**The project is on the Gemini API**, chosen over Anthropic and OpenAI for one
+reason: it is the only one of the three with a **free tier that needs no credit
+card and includes image input**.
+
+**Plan A (few-shot calibration + k-NN on frozen-backbone embeddings) is deferred,
+not rejected.** Tyler's stated reasoning: this is a class project, and A is "too
+much fiddling and effort to be worth doing at this moment." He intends to revisit
+it if development continues past submission. Do not quietly re-litigate this — but
+the argument that will matter later is recorded under "Distribution" below.
+
+Roboflow (pretrained d20 models, or pretrained data) was considered and dropped
+before any code was written.
+
+### Distribution model — bring-your-own-key
+
+Decided while weighing whether others could use this.
+
+- **A shipped API key is not an option.** Anything the app can read at runtime, a
+  user can extract — source, config, env var, or "encrypted" (the decryption key
+  ships too). It would also mean Tyler pays for every user's rolls, uncapped.
+  The only alternative is hosting a backend, which is wildly disproportionate here.
+- **The user pastes their own key** into a settings field. Currently the key lives
+  in `internal_variables.py` (gitignored, untracked — verified with
+  `git check-ignore` and `git ls-files`). That is fine for development but is a
+  *source file holding a secret*, the same shape as the old `test.py` hazard.
+  **It must move to `config.json` alongside `webhook_url`** when the settings
+  menu is built.
+- **Multiple providers** are planned via one adapter per provider
+  (`llm_gemini.py`, `llm_anthropic.py`, `llm_openai.py`), each exposing an
+  identical `readDie(image_array) -> DieReading`, with a dispatcher selecting on
+  `cfg["llm_provider"]`. Duplicate only the adapter, never the pipeline — `MAIN.py`
+  must never learn which provider is active. Only the Gemini adapter is being
+  built now.
+- **The long-term argument for plan A is distribution, not accuracy.** k-NN is the
+  only option that is free, offline, account-free, and unlimited. A cloud-only app
+  is one provider pricing change away from being unusable. That is the case to
+  make if Tyler revisits this.
+
+### Gemini specifics that cost time — read before writing API code
+
+Full signatures are in `toolguide.md` → "Gemini API (google-genai)". The
+non-obvious parts:
+
+- **Package is `google-genai`**, imported `from google import genai`. The older
+  `google-generativeai` is deprecated with a different client shape.
+- **`genai.Client` is keyword-only.** `genai.Client(key)` raises
+  `TypeError: Client.__init__() takes 1 positional argument but 2 were given`,
+  which reads like an arity bug. `self` is positional argument 1. Must be
+  `genai.Client(api_key=...)`.
+- **Model IDs expire.** `gemini-2.5-flash` and `gemini-2.5-flash-lite` both went
+  404 "no longer available to new users" — and both still appear in
+  `models.list()`. **`models.list()` is not an availability check**; calling the
+  model is. Verified working 2026-08-07: `gemini-3.6-flash`,
+  `gemini-3.1-flash-lite`, `gemini-3-flash-preview`, `gemini-flash-latest`.
+  `gemini-3.5-flash` returned 503 (transient overload, not a block).
+- **Distinguish 404 from 503** — permanently unavailable vs. busy right now.
+- **The model ID should live in `general_variables.py` or `config.json`**, not
+  inline in `llm_gemini.py`, so the next expiry is a one-line change.
+- **`max_output_tokens` must be generous — 2048, not 256 — because thinking
+  tokens are billed against it.** This cost a debugging session on 2026-08-07 and
+  presents as an image problem, which it is not. `gemini-flash-latest` resolves to
+  `gemini-3.6-flash`, a **thinking model**. At `max_output_tokens=256` the
+  observed run spent 243 tokens on internal reasoning, emitted 9 tokens of
+  preamble, and was truncated before producing any JSON: `finish_reason`
+  `MAX_TOKENS`, `response.parsed` `None`, `response.text` the fragment
+  `'Here is the JSON requested:\n```'`. `thoughts_token_count` was **243 then 446
+  on two runs of the same image** — it is variable and cannot be budgeted tightly.
+  Note `thinking_config=types.ThinkingConfig(thinking_budget=0)` is the usual way
+  to disable this and **gemini-3.6-flash rejects it with 400 INVALID_ARGUMENT** —
+  headroom is the only lever.
+- **When `response.parsed` is `None`, read `finish_reason` before anything else.**
+  `parsed is None` alone does not distinguish truncation from a safety block from
+  a schema mismatch. `response.candidates[0].finish_reason` and
+  `response.usage_metadata.thoughts_token_count` separate them in two lines. A
+  bare `except` around `response.parsed.value` hides all of this.
+- **Free tier is 20 requests per DAY, per model** — not the ~10/minute previously
+  recorded here. Verified from a live 429 on 2026-08-07: `quotaId`
+  `GenerateRequestsPerDayPerProjectPerModel-FreeTier`, `quotaValue` 20. The RPM
+  ceiling exists but the daily cap is hit first. Token usage is never the binding
+  constraint; a die crop bills ~1110 input tokens against a 1M/minute ceiling.
+- **Quota is scoped per model**, per the 429's `quotaDimensions`. A different
+  model ID draws from a separate 20/day bucket, which is the escape hatch when
+  one is exhausted. `gemini-flash-latest` is an alias sharing `gemini-3.6-flash`'s
+  bucket — pin an explicit ID to control which bucket is drawn from. Do not mix
+  results from two models in one accuracy table.
+- **Distinguish per-minute from per-day 429s.** Both are HTTP 429. A
+  `...PerMinute...` quota is transient and sleep-and-retry is correct; a
+  `...PerDay...` quota is exhausted until midnight Pacific and retrying only
+  spins. Branch on the `quotaId` substring — `break` the batch on PerDay,
+  `continue` on PerMinute. Ignore the `retryDelay: 2s` field on a per-day
+  violation; it is generic and misleading.
+- **Tyler is on paid credits as of 2026-08-07**, so the free-tier caps above no
+  longer bind day-to-day development. They are recorded because the
+  bring-your-own-key distribution model means *users* will be on the free tier —
+  20 rolls/day is roughly one short D&D combat. This is a real limit on the
+  product, not just on development, and it strengthens the long-term argument for
+  plan A recorded under "Distribution".
+
+**Verified end to end 2026-08-07:** a real 114×109 capture, PNG bytes →
+`types.Part.from_bytes` → `gemini-3.6-flash` returned a numeric answer. The
+plumbing works.
+
+### The accuracy baseline — DONE 2026-08-07: 7/7
+
+**Result: 7 correct, 0 wrong, 0 abstain, on `gemini-3.6-flash`, single call per
+image, no voting.** This measurement had been owed since the Ollama era; every
+previous attempt was contaminated (early batches ~70×70 px with ~13 px numerals,
+unreadable by a human reviewer too; a later batch of eight included three
+fragment captures, i.e. unanswerable inputs scored as failures). These inputs
+were clean and the result is trustworthy for what it covers.
+
+**Ground truth for `captures/`, verified by Tyler 2026-08-07.** This had never
+been recorded anywhere. In `sorted(glob.glob("captures/*.png"))` order:
+
+| File | Value |
+|---|---|
+| `roll_20260806_173557_717511.png` | 8 |
+| `roll_20260806_173601_588791.png` | 20 |
+| `roll_20260806_173616_373642.png` | 13 |
+| `roll_20260806_173620_181063.png` | 19 |
+| `roll_20260806_173626_966083.png` | 4 |
+| `roll_20260806_173630_406358.png` | 16 |
+| `roll_20260806_173633_863178.png` | 20 |
+
+**Two limits on what this proves — do not overstate it:**
+
+- **n=7, one die, one lighting setup, one camera position.** It justifies
+  proceeding on the LLM path; it does not establish a general accuracy rate.
+- **6-vs-9 is UNTESTED, not solved.** No face in the sample is a bare 6 or 9
+  (the values are 8, 20, 13, 19, 4, 16, 20). The ambiguity described under "Two
+  constraints to design in from the start" remains entirely open, and the
+  underline calibration question is still needed.
+
+**Consequence: voting is not being built.** The handoff's standing instruction
+was to measure single-call accuracy before spending request budget on 3–5 frame
+voting. Measured — there is no headroom to buy. 5× the requests for 0%
+improvement. Revisit only if accuracy degrades on a larger or more varied set.
+
+Prompt-design lessons that carry over from the Ollama attempt: never give the
+model a valid-looking default for failure ("if unsure, reply 20") — it makes
+failures uncountable. And a model looking at a flat image has no notion of "the
+top" of a die; "the face directly facing the camera, in the centre of the image"
+is actionable where "the very top" is not.
+
+Use **structured output** rather than string parsing — `response_mime_type` set
+to `"application/json"` plus a Pydantic `response_schema`, read back from
+`response.parsed`. Besides making abstain explicit, it returns a real `int`,
+which closes the `discord_webhook.py` bug where `== 20` and `== 1` never match
+against a string.
 
 ## GUI decisions already made (tkinter)
 
@@ -495,16 +721,19 @@ detection work stands on its own. Accordingly:
   crop. Sanity checks still outstanding (see known bugs).
 - `refresh` (`interface.py:54-72`) — drive off settle events, not value changes.
   Still outstanding; this is build-order step 6.
-- ~~`ollama_func.py` prompt~~ **DONE** — now replies `UNKNOWN` on failure.
+- ~~`ollama_func.py` prompt~~ **OBSOLETE** — file deleted; the local-VLM path is
+  abandoned. The prompt-design lessons are preserved under "The measurement
+  still owed" and in `toolguide.md`.
 
 **Keep as-is:**
 - `MAIN.py`, `ui_vars.py`, the tkinter layout in `interface.py`
-- `fireMessage` structure — but note `pip_count` arrives as a **string** from the
-  VLM path, so the `== 20` / `== 1` comparisons in `discord.py` currently never
-  match. Coerce to `int` at the classifier boundary.
+- `fireMessage` structure — but note `pip_count` arrived as a **string** from the
+  old VLM path, so the `== 20` / `== 1` comparisons in `discord_webhook.py` never
+  match. Using a Pydantic `response_schema` on the Gemini call fixes this at the
+  source by returning a real `int`; otherwise coerce at the classifier boundary.
 
-**Promoted, not sidelined:** `ollama_func.py` serves double duty as the
-zero-setup path *and* the calibration auto-labeler.
+**Replaced:** `ollama_func.py`'s double duty — zero-setup path *and* calibration
+auto-labeler — now belongs to `llm_gemini.py`.
 
 ## Suggested build order
 
@@ -537,36 +766,81 @@ zero-setup path *and* the calibration auto-labeler.
    because a `for` loop over a returned string iterates its six characters, one
    roll produced six events. That symptom looked exactly like detector instability
    and cost real time — worth remembering if repeated events reappear.
-4. VLM voting path — **IN PROGRESS.** Single-call path works; see "VLM path —
-   results so far" above. Blocked on getting a clean accuracy baseline before
-   building the voting layer.
-5. Embedding + k-NN classifier and the calibration wizard UI
-6. Rewire `interface.py` to consume settle events, and move `webhook_url` into
-   `config.json`
+4. Cloud LLM path — **WORKING.** Provider switched from Ollama to Gemini.
+   Structured output is in (`DieReading` Pydantic schema in `ai_variables.py`,
+   `response_mime_type="application/json"`), and the accuracy baseline is done:
+   **7/7 on the clean captures.** Voting is deliberately not built — see "The
+   accuracy baseline". What remains in this stage: settle on a final model ID in
+   `general_variables.py`, add 429/`finish_reason` handling, and give `readDie`
+   its real signature (`image_bytes` rather than a hardcoded path) so
+   `llm_anthropic.py` / `llm_openai.py` can match it later.
+5. ~~Embedding + k-NN classifier and the calibration wizard UI~~ **DEFERRED** —
+   post-submission, if development continues. See "Classifier decision".
+6. Rewire `interface.py` to consume settle events; move `webhook_url` **and the
+   API key** into `config.json` and expose both in a settings menu.
 
 Each stage is independently testable, which the original pipeline was not.
 
 ## Known bugs and unbuilt guards — current
 
-None of these block progress; all were identified and left. Ranked:
+None of these block progress. Ranked:
 
-1. **Occupancy bands are stale.** `occupancy_threshold=500`, `partial_occupancy_min=200`,
-   `outlier_occupancy=10000` were tuned before the resolution change and before the
-   camera moved. Pixel counts roughly quadrupled, so fragments now pass as valid
-   rolls. Re-derive from printed values before trusting any capture set. This is
-   the third re-tune — see the "Parked: occupancy thresholds" section.
-2. **Aspect-ratio and contour-count sanity checks unbuilt.** Would catch the
-   fragments, die-plus-shadow, and two-dice cases as honest abstains.
-3. **`capture.release()` is never called.** `MAIN.py` has no `try/finally`, so the
-   camera stays held after an exception or Ctrl+C, and the next run may fail to
-   open it.
-4. **`cv2.imwrite` return value unchecked** in `capture_generator.py`. It returns
-   `False` rather than raising, so a bad path loses captures silently.
-5. **Timestamp collision.** `time.strftime('%Y%m%d_%H%M%S')` has one-second
-   resolution; two captures in the same second overwrite silently. Matters during
-   a 40–60 roll calibration collection.
-6. **Dead code:** `displayWindow` in `settle_detector.py`; `result = 0.0` in
-   `dieRollDetection`, overwritten before it is read.
+1. **Occupancy bands are stale — now the top defect.** `occupancy_threshold=500`,
+   `partial_occupancy_min=200`, `outlier_occupancy=10000` predate the resolution
+   change and the camera move. This is the third re-tune — see the "Parked:
+   occupancy thresholds" section. Two distinct failure modes are getting through:
+   - **Fragments.** Partial-die crops (71×86, 105×75) saved as valid rolls.
+   - **Tray-moved captures.** If the tray shifts, the background model is stale
+     and the tray rim against the table reads as a huge changed region. Three of
+     ten captures in one run were pictures of the tray edge with **no die in them
+     at all** — 3–8× the area of a die crop, ~2× the brightness, and a *low*
+     Laplacian score because a plain edge has little detail. `outlier_occupancy`
+     was supposed to catch exactly this and did not.
+2. **Aspect-ratio and contour-count sanity checks unbuilt.** Note carefully: an
+   aspect gate **would not** have caught the tray-rim captures — they land at
+   0.62–0.67, inside the proposed 0.6–1.6 band. **Size is the discriminator**
+   there (11k–19k px bounding-box area for a real die vs 44k–93k), not shape.
+   Aspect still helps for fragments.
+3. **Dead code:** `displayWindow` in `settle_detector.py`; `result = 0.0` in
+   `dieRollDetection`, overwritten before it is read. `import glob` in
+   `llm_gemini.py`. `generateAndSaveFrame` in `capture_generator.py` is unused
+   and duplicates `saveSingleFrame`'s naming logic — fix both or delete it.
+4. **`requirements.txt` is out of sync.** `google-genai` (installed, 2.17.0) is
+   missing, and `ollama==0.6.2` is still listed despite the local-VLM path being
+   abandoned. A fresh clone cannot run the classifier.
+5. **`llm_gemini.py` runs its test call at module scope.** Importing the module
+   fires an API call. **This is deliberate scaffolding, not a bug** — Tyler is
+   using the file as a fast manual test harness and has asked that it not be
+   flagged. It genuinely does need an `if __name__ == "__main__":` guard before
+   `llm_router.py` or the tests import it; raise it *then*, at integration time,
+   and not before.
+
+**Closed since the last handoff:** `capture.release()` (now in a `try/finally` in
+`MAIN.py`); unchecked `cv2.imwrite` (raises `IOError`); timestamp collision
+(microsecond filenames).
+
+## Tests
+
+`tests/` — run with `.venv/Scripts/python.exe -m pytest tests -q`.
+
+| File | Covers |
+|---|---|
+| `conftest.py` | Stubs the `camera` module in `sys.modules` so importing project code does not seize the webcam. Every other test file depends on this. |
+| `test_camera_backend.py` | Hardware tests — resolution/autofocus/buffersize readbacks, the MSMF-drops-autofocus regression guard, per-frame sharpness stability, best-of-N benefit. Skips automatically with no webcam. |
+| `test_capture_quality.py` | Audits `captures/*.png` for the unbuilt sanity gates (min side, aspect, sharpness floor, cross-set spread), plus save-path tests that monkeypatch the capture directory. |
+| `test_geometry.py` | ROI bbox, hexagon-not-rectangle masking, mask↔crop coordinate alignment, `MAIN.py`'s crop clamps. |
+| `test_settle_metric.py` | Quantifies the parked `cv2.mean` dilution — a die jumping 40 px scores *lower* than a 10-grey-level ambient shift that moved nothing. |
+
+Two things a fresh agent should know:
+
+- **`open_like_camera_py()` in `test_camera_backend.py` duplicates `camera.py`'s
+  construction and must be kept in sync.** It already went stale once.
+- **Failing tests are currently expected.** The capture-quality tests fail on the
+  fragment and tray-rim captures by design — they encode the gates that are not
+  built yet. Do not "fix" them by loosening thresholds.
+- Thresholds in `test_capture_quality.py` (`SHARPNESS_FLOOR`, `MIN_SIDE`) are
+  rig-specific and derived from small samples. The hardcoded ROI hexagon in
+  `test_geometry.py` will go stale if the tray is re-picked.
 
 ## Open threads
 
@@ -574,16 +848,31 @@ None of these block progress; all were identified and left. Ranked:
   nothing matching `__pycache__`/`config.json`/`test.py` appears in
   `git ls-files`, and `git check-ignore -v` confirms all three rules fire.
 - ~~Camera position~~ **CLOSED** — overhead; see build order step 0.
-- **Per-digit vs. whole-face classification — fork still not decided.** Note it
-  does not block stage 4: a VLM reads whatever crop it is given. It must be decided
-  before stage 5. The physical constraints above argue for whole-face — at 30px,
-  segmenting individual digits is far less viable than matching the face as a
-  single pattern.
+- ~~Per-digit vs. whole-face classification~~ **RESOLVED: whole-face.** At 30 px,
+  segmenting individual digits is far less viable than matching the face as one
+  pattern, and it sidesteps the touching-digit risk. Only matters if plan A is
+  revived; it does not affect the LLM path, which reads whatever crop it is given.
+- **Rotation is the unrecorded landmine in plan A.** ImageNet-style embeddings are
+  not rotation-invariant, and a D20 face lands at arbitrary rotation. Measured on
+  real captures with a normalized-pixel proxy: the *same* face rotated 90° sat at
+  distance 87.5 while a *different* face sat at 83.5 — nearest-neighbour picks the
+  wrong one. The fix is cheap and must be designed in from the start: augment each
+  labelled crop through ~12 rotations at calibration, so one roll becomes twelve
+  reference vectors. Two consequences — 60 random rolls will not evenly cover 20
+  faces, so the wizard must *track coverage* rather than count to 60; and rotation
+  augmentation makes 6-vs-9 strictly worse (rotating a "6" 180° manufactures a "9"
+  labelled "6"), which promotes the underline question from nicety to load-bearing.
 - Whether d6 pip mode is kept alongside d20 — assumed yes, not confirmed. The pip
   code now lives only in `archive/test.py`, which is untracked; if that mode is
   wanted, the `SimpleBlobDetector` block needs rescuing before the file is deleted.
-- **A clean VLM accuracy baseline** on sharp whole-die captures — the immediate
-  next measurement, described under "VLM path — results so far".
+- ~~A clean accuracy baseline~~ **CLOSED 2026-08-07 — 7/7.** See "The accuracy
+  baseline".
+- ~~Ground truth for `captures/`~~ **CLOSED** — recorded in the table under "The
+  accuracy baseline". It lives in this file rather than beside the captures; move
+  it to `captures/ground_truth.md` if the set grows.
+- **A larger and more varied accuracy set.** The 7/7 is one die, one lighting
+  setup, one camera position, and contains no bare 6 or 9. The useful next
+  measurement is a set that deliberately includes 6, 9, and a second die colour.
 - Tyler was offered, and has not yet taken up, a detailed sketch of either the
   calibration flow's state machine or the settle detector's adaptive threshold
   logic.

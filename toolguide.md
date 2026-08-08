@@ -1322,11 +1322,42 @@ time.strftime(format, t=None)
     returns: the formatted string
 ```
 
-Builds timestamped filenames that sort chronologically and rarely collide. For
-rapid captures add a counter, since `imwrite` overwrites silently.
+Builds timestamped filenames that sort chronologically. **One-second resolution
+is not enough for capture filenames** — see the next entry. Superseded in
+`capture_generator.py` for exactly that reason.
 
 ```python
-file_name = f"roll_{time.strftime('%Y%m%d_%H%M%S')}.png"
+file_name = f"roll_{time.strftime('%Y%m%d_%H%M%S')}.png"   # collides
+```
+
+### datetime.datetime.now / .strftime
+
+```
+Function:
+datetime.datetime.now(tz=None)
+    tz: timezone to express the result in
+        default None: naive local time — correct for filename labels
+    returns: a datetime object
+
+Function:
+datetime.datetime.strftime(format)
+    format: the same directives time.strftime takes, plus one more
+        %f: microseconds, zero-padded to 6 digits — the field time.strftime lacks
+    returns: the formatted string
+```
+
+The fix for timestamp collisions. `time.strftime` has **no sub-second directive
+at all**, so there is nothing to widen — you need a different clock. A measured
+demonstration: five `saveSingleFrame` calls in a loop under `%H%M%S` produced
+**one** file, because each write silently overwrote the last. Under `%f`, five.
+
+Import it one way and stay consistent — `import datetime` then
+`datetime.datetime.now()`, or `from datetime import datetime` then
+`datetime.now()`. The doubled name catches people out.
+
+```python
+stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+file_name = f"roll_{stamp}.png"
 ```
 
 ---
@@ -1475,7 +1506,12 @@ if __name__ == "__main__":
 
 ## Vision model calls
 
-### ollama.generate
+### ollama.generate — RETIRED
+
+`ollama_func.py` has been deleted and the local-VLM path abandoned (accuracy on
+d20 numerals was poor at every model tried). Kept here for the prompt-design
+lessons at the end of the entry, which transfer to any vision model. Do not
+build on this API.
 
 ```
 Function:
@@ -1517,3 +1553,212 @@ for failure cases ("if unsure, reply 20"), because it makes failures indistingui
 from real answers and uncountable. And a model reading a flat image has no notion of
 "the top" of a die — "the face directly facing the camera, in the centre of the
 image" is something it can actually act on.
+
+---
+
+## Gemini API (google-genai)
+
+Package is **`google-genai`**, imported as `from google import genai`. The older
+`google-generativeai` package is deprecated and has a different client shape —
+tutorials written against it will not work.
+
+Three conventions that bite:
+
+- **`genai.Client` is keyword-only.** See the entry below; the error message is
+  misleading.
+- **Never name a project file `google.py`, `genai.py`, or `types.py`.** The first
+  two shadow the package; `types.py` shadows a *standard library* module and
+  breaks unrelated code. This project has already lost time to `ollama.py` and
+  `discord.py` doing exactly this.
+- **`models.list()` is not an availability check.** It lists what the API knows
+  about, not what your tier may call. Verified: `gemini-2.5-flash` appears in the
+  listing and 404s when invoked.
+
+### genai.Client
+
+```
+Function:
+genai.Client(*, enterprise=None, vertexai=None, api_key=None, credentials=None,
+             project=None, location=None, debug_config=None, http_options=None)
+    api_key: your Gemini API key
+        must be passed BY NAME — see the note below
+        default None: falls back to the GEMINI_API_KEY environment variable
+    vertexai: use Google Cloud Vertex AI instead of the Developer API
+        default None: the Developer API — what a free-tier key uses
+        True: Vertex, which needs a GCP project and different auth
+    project / location / credentials: Vertex-only; leave unset
+    enterprise: enterprise routing; leave unset
+    debug_config: request/response logging for debugging
+    http_options: timeouts and retry configuration
+        default None: SDK defaults
+    returns: a Client object
+```
+
+**Note the bare `*` immediately after the opening paren: every parameter is
+keyword-only.** `genai.Client(key)` raises
+
+```
+TypeError: Client.__init__() takes 1 positional argument but 2 were given
+```
+
+which reads like an arity bug but is not. Python passes the new instance as
+`self` — that is positional argument 1 — and the key becomes argument 2, which
+has nowhere to go because `*` closes the positional slots. **On a method,
+subtract one from both numbers to get the count in your own code:** "takes 1,
+got 2" means "takes 0, you passed 1."
+
+```python
+client = genai.Client(api_key=gemini_api_key)   # keyword, not positional
+```
+
+### client.models.generate_content
+
+```
+Function:
+client.models.generate_content(model, contents, config=None)
+    model: the model ID string
+        "gemini-3.6-flash": current free-tier Flash (verified working 2026-08-07)
+        "gemini-flash-latest": alias that auto-tracks the newest Flash —
+            convenient, but the model changes underneath without a code edit,
+            so measured accuracy numbers stop being reproducible
+        model IDs expire; see "Finding a working model" below
+    contents: the prompt
+        a plain string, for a text-only smoke test
+        a list mixing Part objects and strings, for multimodal:
+            [image_part, "your question"]
+    config: a types.GenerateContentConfig instance
+        default None: unconstrained free-text output, fine for a smoke test
+    returns: a response object
+        .text: the reply as a string
+        .parsed: the reply deserialized into the response_schema type
+        .usage_metadata.prompt_token_count / .candidates_token_count
+```
+
+```python
+response = client.models.generate_content(
+    model="gemini-3.6-flash",
+    contents="Reply with the word OK.",
+)
+print(response.text)
+```
+
+### types.Part.from_bytes
+
+```
+Function:
+types.Part.from_bytes(data, mime_type)
+    data: raw image bytes
+        from OpenCV: cv2.imencode(".png", crop)[1].tobytes()
+        pass RAW bytes — the SDK base64-encodes internally. Do not pre-encode.
+    mime_type: the format string
+        "image/png": lossless, matches what capture_generator.py writes
+        "image/jpeg": only if there is a reason to re-compress
+    returns: a Part suitable for the contents list
+```
+
+Measured on this rig: a 114x109 die crop bills **~1110 input tokens**. Gemini
+tiles images and has a per-image floor, so the Anthropic `w*h/750` estimate does
+not transfer — do not size budgets with it.
+
+```python
+ok, buf = cv2.imencode(".png", die_crop)
+part = types.Part.from_bytes(data=buf.tobytes(), mime_type="image/png")
+```
+
+### types.GenerateContentConfig
+
+```
+Function:
+types.GenerateContentConfig(system_instruction=None, temperature=None,
+                            max_output_tokens=None, response_mime_type=None,
+                            response_schema=None, thinking_config=None,
+                            safety_settings=None, top_p=None, top_k=None)
+    system_instruction: standing instructions, separate from the per-call prompt
+        put the "you are reading a d20" framing here, not in contents
+    temperature: randomness, roughly 0.0-2.0
+        0.0: near-deterministic — correct for classification, where the goal is
+            one right answer rather than creative variety
+    max_output_tokens: cap on the reply
+        256: ample for a small JSON object
+    response_mime_type: the output format
+        "application/json": REQUIRED for structured output. Setting
+            response_schema without this does not reliably constrain the reply.
+    response_schema: the shape to enforce
+        a Pydantic BaseModel class — read the result back from response.parsed
+        a plain dict JSON schema — also accepted
+    thinking_config: reasoning budget on 2.5+ models
+        default None: model default
+    safety_settings: content filter thresholds
+        default None: defaults. Dice are uncontroversial; revisit only if an
+            empty response comes back with a blocked finish reason.
+    top_p / top_k: sampling controls; leave unset when temperature is 0
+```
+
+Structured output is the abstain mechanism. Returning a typed object rather than
+a string also closes a long-standing bug here: `discord_webhook.py` compares
+`== 20` and `== 1`, which never match when the value arrives as text.
+
+```python
+class DieReading(BaseModel):
+    value: Optional[int]                          # None means "could not read"
+    confidence: Literal["high", "medium", "low"]
+
+config = types.GenerateContentConfig(
+    temperature=0.0,
+    response_mime_type="application/json",
+    response_schema=DieReading,
+)
+reading = response.parsed        # a validated DieReading; value is a real int
+```
+
+### client.models.list
+
+```
+Function:
+client.models.list()
+    takes no required arguments
+    returns: an iterable of model objects
+        .name: "models/gemini-3.6-flash" — note the "models/" prefix
+        .supported_actions: e.g. ["generateContent"]
+        .input_token_limit / .output_token_limit
+```
+
+Use it to *discover candidates*, never to confirm availability — see the
+convention note at the top of this section.
+
+### Finding a working model
+
+Model IDs expire. `gemini-2.5-flash` and `gemini-2.5-flash-lite` both went 404
+("no longer available to new users") while still appearing in `models.list()`.
+The reliable procedure is to call each candidate and see what comes back:
+
+```python
+for m in ["gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"]:
+    try:
+        r = client.models.generate_content(model=m, contents="Say OK")
+        print(m, "WORKS", r.text.strip())
+    except Exception as e:
+        print(m, "FAILS", type(e).__name__, str(e)[:100])
+```
+
+Distinguish the two failure modes — they mean different things:
+
+- **404 NOT_FOUND** — permanently unavailable to this account. Pick another model.
+- **503 UNAVAILABLE** — transient overload. The model is available, just busy.
+  Retry, or prefer a less contended one.
+
+As measured 2026-08-07 on this key: `gemini-3.6-flash`, `gemini-3.1-flash-lite`,
+`gemini-3-flash-preview`, and `gemini-flash-latest` all worked;
+`gemini-3.5-flash` returned 503; both 2.5 Flash variants returned 404.
+
+### Free tier constraints
+
+- **No credit card required**, and image input is included — the reason this
+  provider was chosen over Anthropic and OpenAI, which have no free tier.
+- **~10 requests per minute** is the binding limit, not cost or tokens. At ~1110
+  tokens per die crop, the 1M tokens-per-minute ceiling is irrelevant.
+- **This makes frame-voting expensive in requests, not dollars.** Voting over
+  5 frames means 5 requests per roll, i.e. two rolls per minute before
+  throttling. Measure single-call accuracy before spending that budget.
+- **Treat HTTP 429 as a normal condition**, not an exception — it should surface
+  as "try again" in the UI, never a traceback.
