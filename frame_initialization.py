@@ -37,13 +37,14 @@ def onMouse(event, x, y, flags, param):
         param.append([x, y])
 
 def multiPoint():
-    ret, frame = capture.read()
-    if ret is False:
-        raise Exception("Camera read error")
+    
     points = []
     cv2.namedWindow("dice cam")
     cv2.setMouseCallback("dice cam", onMouse, param=points)
     while True:
+        ret, frame = capture.read()
+        if ret is False:
+            raise Exception("Camera read error")
         display = frame.copy()
 
         for p in points:

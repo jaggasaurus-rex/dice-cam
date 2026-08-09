@@ -56,8 +56,9 @@ def cameraCalibration(roi, poly_mask):
     print("Calibrating - Keep Tray Empty and Still")
     capture.set(cv2.CAP_PROP_AUTOFOCUS, 1)
     threshold, background = frameNoise(roi, poly_mask)
+    focus_data = capture.get(cv2.CAP_PROP_FOCUS)
     print("Calibration complete, waiting for roll")
-    return threshold, background
+    return threshold, background, focus_data
 
 def dieRollDetection(threshold, roi, poly_mask=None):
     prev = None
@@ -92,4 +93,3 @@ def dieRollDetection(threshold, roi, poly_mask=None):
                         yield "SETTLE"
 
         prev = current_frame
-

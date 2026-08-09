@@ -40,3 +40,8 @@ def writeEntryToConfig(entry_name, entry_value):
     saveConfig(cfg)
     return cfg
 
+def forceWriteToConfig(entry_name, entry_value):
+    cfg = loadConfig()
+    cfg[entry_name] = entry_value
+    saveConfig(cfg)
+    return cfg

@@ -4,7 +4,7 @@ from capture_generator import  saveSingleFrame, sharpestFrame
 from llm_gemini import readDie
 from general_variables import *
 from config import *
-from camera import capture
+from camera import capture, cameraInitialization
 import cv2
 
 def main():
@@ -49,13 +49,31 @@ def main():
 
 def mainALT():
     try:
+        cameraInitialization()
         cfg = firstRunROIConfig()
         roi, poly_mask = buildTrayGeometry(cfg)
-        threshold, background = cameraCalibration(roi, poly_mask)
+        threshold, background, focus_data = cameraCalibration(roi, poly_mask)
+        capture.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+        capture.set(cv2.CAP_PROP_FOCUS, focus_data)
         #saveSingleFrame(background)
 
         for event in dieRollDetection(threshold, roi, poly_mask):
             frame, score = sharpestFrame(roi)
+            frame_copy = frame.copy()
+            roi_crop = cropToRoi(frame_copy, roi)
+            masked = cv2.bitwise_and(roi_crop, roi_crop, mask=poly_mask)
+            file_location = saveSingleFrame(masked)
+    finally:
+        forceWriteToConfig("roi_points", None)
+        cv2.destroyAllWindows()
+        capture.release()
+
+
+
+mainALT()
+
+
+'''
             if score < sharpness_floor:
                 print(f"Focus lost ({score:.0f}) - roll again")
                 continue
@@ -68,15 +86,10 @@ def mainALT():
                 roi_crop = cropToRoi(frame_copy, roi)
                 masked = cv2.bitwise_and(roi_crop, roi_crop, mask=poly_mask)
                 file_location = saveSingleFrame(masked)
-                value = readDie(file_location)
-                print(value)
+
+                ### Comment these fields out for debugging without calling AI
+                #value = readDie(file_location)
+                #print(value)
             elif occupancy_count >= outlier_occupancy:
                 print("Object obscuring camera. Roll again.")
-
-    finally:
-        cv2.destroyAllWindows()
-        capture.release()
-
-
-
-mainALT()
+'''
