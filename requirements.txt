@@ -22,3 +22,6 @@ requests==2.34.2
 typing-inspection==0.4.2
 typing_extensions==4.16.0
 urllib3==2.7.0
+
+#For Gemini
+gcloud=={Google Cloud SDK: 579.0.0, bq: 2.1.36, core: 2026.07.31, gcloud-crc32c: 1.0.0, gsutil: 5.37}

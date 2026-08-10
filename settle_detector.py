@@ -58,7 +58,7 @@ def cameraCalibration(roi, poly_mask):
     threshold, background = frameNoise(roi, poly_mask)
     focus_data = capture.get(cv2.CAP_PROP_FOCUS)
     print("Calibration complete, waiting for roll")
-    return threshold, background, focus_data
+    return threshold, background
 
 def dieRollDetection(threshold, roi, poly_mask=None):
     prev = None

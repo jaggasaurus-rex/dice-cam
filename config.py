@@ -7,6 +7,7 @@ DEFAULTS = {
   "camera_mount": "overhead",
   "webhook_url": None,
   "noise_threshold": None,
+  "focus_value": None,
 }
 
 def loadConfig():

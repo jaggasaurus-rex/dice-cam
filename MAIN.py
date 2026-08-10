@@ -1,6 +1,6 @@
 from settle_detector import cameraCalibration, dieRollDetection, cropToRoi
 from frame_initialization import firstRunROIConfig, occupancyCount, buildTrayGeometry, grabProcessedFrame
-from capture_generator import  saveSingleFrame, sharpestFrame
+from capture_generator import  saveSingleFrame, sharpestFrame, focusFineSweep
 from llm_gemini import readDie
 from general_variables import *
 from config import *
@@ -52,9 +52,10 @@ def mainALT():
         cameraInitialization()
         cfg = firstRunROIConfig()
         roi, poly_mask = buildTrayGeometry(cfg)
-        threshold, background, focus_data = cameraCalibration(roi, poly_mask)
+        cfg = focusFineSweep(roi, poly_mask, cfg)
+        threshold, background = cameraCalibration(roi, poly_mask)
         capture.set(cv2.CAP_PROP_AUTOFOCUS, 0)
-        capture.set(cv2.CAP_PROP_FOCUS, focus_data)
+        capture.set(cv2.CAP_PROP_FOCUS, cfg["focus_value"])
         #saveSingleFrame(background)
 
         for event in dieRollDetection(threshold, roi, poly_mask):
@@ -63,8 +64,11 @@ def mainALT():
             roi_crop = cropToRoi(frame_copy, roi)
             masked = cv2.bitwise_and(roi_crop, roi_crop, mask=poly_mask)
             file_location = saveSingleFrame(masked)
+            ### Comment these fields out for debugging without calling AI
+            #value = readDie(file_location)
+            #print(value)
     finally:
-        forceWriteToConfig("roi_points", None)
+        #forceWriteToConfig("roi_points", None)
         cv2.destroyAllWindows()
         capture.release()
 

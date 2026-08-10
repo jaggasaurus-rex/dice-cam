@@ -6,3 +6,14 @@ outlier_occupancy = 10000
 crop_pad = 10
 upscale_val = 4
 sharpness_floor = 40
+
+#camera
+max_focus_value = 255
+
+#capture_generator
+coarse_sweep_step_size = 20
+fine_sweep_step_size = 5
+
+#ai variables
+ai_project_name = "dice-cam"
+ai_location = "us-central1"
