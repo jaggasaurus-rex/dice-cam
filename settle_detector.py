@@ -53,6 +53,7 @@ def frameNoise(roi, poly_mask=None):
     return threshold, prev
 
 def cameraCalibration(roi, poly_mask):
+    input("Remove any objects from the tray: Press ENTER when Done")
     print("Calibrating - Keep Tray Empty and Still")
     capture.set(cv2.CAP_PROP_AUTOFOCUS, 1)
     threshold, background = frameNoise(roi, poly_mask)

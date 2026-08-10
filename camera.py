@@ -10,6 +10,7 @@ if capture.get(cv2.CAP_PROP_AUTOFOCUS) != 1.0:
     print(F'WARNING: autofocus not honoured (readback {capture.get(cv2.CAP_PROP_AUTOFOCUS)})')
 
 def cameraInitialization():
+    print("Initializing Camera")
     capture_count = 0
     while capture_count <=30:
         capture.read()

@@ -48,7 +48,10 @@ def readDie(path):
             return f"AI model is busy right now and can't return a response"
         raise
 
-
+def opposite_face_valid(reading):
+    if reading.value is None:
+        return True
+    return (21 - reading.value) not in reading.other_face_numerals
     
     
 
@@ -56,7 +59,8 @@ def testCase():
 
     for path in sorted(glob.glob("captures/*.png")):
         response = readDie(path)
+        valid_reason = opposite_face_valid(response)
 
-        print(response)
+        print(response.value, response.other_face_numerals, valid_reason)
 
 #testCase()

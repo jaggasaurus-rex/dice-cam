@@ -46,3 +46,7 @@ def forceWriteToConfig(entry_name, entry_value):
     cfg[entry_name] = entry_value
     saveConfig(cfg)
     return cfg
+
+def firstRunReset():
+    forceWriteToConfig("roi_points", None)
+    forceWriteToConfig("focus_value", None)
