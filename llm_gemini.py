@@ -7,6 +7,8 @@ from pathlib import Path
 import ai_variables as av
 from general_variables import ai_location, ai_project_name
 
+class DieReadError(Exception):
+    pass
 
 config = types.GenerateContentConfig(
     system_instruction=av.system_instruction_var,
@@ -34,18 +36,24 @@ def readDie(path):
                 contents=[part, "Read the top face of this d20."],
                 config=config
             )
+        if not response.candidates:
+            return None
+        if response.candidates[0].finish_reason != types.FinishReason.STOP:
+            return None
         value = response.parsed
         return value
 
     except errors.ClientError as e:
         if e.code == 429 and "PerDay" in str(e):
-            return f"Daily quota exhausted, your AI can't function without usage credits"
+            raise DieReadError("Daily quota exhausted, your AI can't function without usage credits") from e
         elif e.code == 429 and "PerDay" not in str(e):
-            return f"Temporarily unable to call AI. Please try again."
+            raise DieReadError("Temporarily unable to call AI. Please try again.") from e
         elif e.code == 404:
-            return f"Error: Cannot access the selected AI model"
+            raise DieReadError("Error: Cannot access the selected AI model") from e
         elif e.code == 503:
-            return f"AI model is busy right now and can't return a response"
+            raise DieReadError("AI model is busy right now and can't return a response") from e
+        raise
+    except errors.APIError as e:
         raise
 
 def opposite_face_valid(reading):
@@ -58,9 +66,15 @@ def opposite_face_valid(reading):
 def testCase():
 
     for path in sorted(glob.glob("captures/*.png")):
-        response = readDie(path)
-        valid_reason = opposite_face_valid(response)
+        try: 
+            response = readDie(path)
+        except DieReadError as e:
+            print(path, e)
+            continue
+        if response is None:
+            print(path, "no reading")
+            continue
 
-        print(response.value, response.other_face_numerals, valid_reason)
+        print(response.value, response.other_face_numerals, opposite_face_valid(response))
 
 #testCase()

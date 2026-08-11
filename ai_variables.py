@@ -4,8 +4,8 @@ from typing import Optional, Literal
 
 class DieReading(BaseModel):
     die_location: str
-    visible_faces: str
     top_face_position: str
+    visible_faces: str
     other_face_numerals: list[int]
     top_face: str
     value: Optional[int]

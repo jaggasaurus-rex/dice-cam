@@ -2,6 +2,7 @@ import cv2
 import os
 import datetime
 import statistics
+import json
 from settle_detector import *
 from config import *
 from camera import capture, setFocusAndSettle
@@ -9,6 +10,8 @@ from general_variables import fine_sweep_step_size, coarse_sweep_step_size
 
 capture_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "captures")
 os.makedirs(capture_directory, exist_ok=True)
+tests_directory = os.path.join(os.path.dirname(__file__), "test_images")
+os.makedirs(tests_directory, exist_ok=True)
 
 
 def saveSingleFrame(frame):
@@ -99,3 +102,12 @@ def focusFineSweep(roi, poly_mask, cfg):
 
     else:
         return cfg
+
+def saveLabeledFrame(frame, meta, directory):
+    stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    base = os.path.join(directory, f"roll_{stamp}")
+    if not cv2.imwrite(base + ".png", frame):
+        raise IOError(f"Failed to write capture: {base}.png")
+    with open(base + ".json", "w") as f:
+        json.dump(meta, f, indent=4)
+    return base + ".png"

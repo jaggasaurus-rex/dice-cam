@@ -1,6 +1,6 @@
 from settle_detector import cameraCalibration, dieRollDetection, cropToRoi
 from frame_initialization import firstRunROIConfig, occupancyCount, buildTrayGeometry, grabProcessedFrame
-from capture_generator import  saveSingleFrame, sharpestFrame, focusFineSweep
+from capture_generator import  saveSingleFrame, sharpestFrame, focusFineSweep, saveLabeledFrame, tests_directory
 from llm_gemini import readDie
 from general_variables import *
 from config import *
@@ -92,7 +92,7 @@ def mainALT2():
             mask, occupancy_count = occupancyCount(processed_frame, background, poly_mask)
             masked = cv2.bitwise_and(roi_crop, roi_crop, mask=poly_mask)
             if occupancy_count > partial_occupancy_min and occupancy_count < occupancy_threshold:
-                            print("Roll not fully in frame. Roll again.")
+                print("Roll not fully in frame. Roll again.")
             elif occupancy_count >= occupancy_threshold and occupancy_count < outlier_occupancy:
                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 if not contours:
@@ -104,38 +104,23 @@ def mainALT2():
                 y2 = min(masked.shape[0], y + h + crop_pad)
                 x2 = min(masked.shape[1], x + w + crop_pad)
                 die_crop = masked[y1:y2, x1:x2]
-                file_location = saveSingleFrame(die_crop)
+                meta = {
+                    "bbox": [int(x), int(y), int(w), int(h)],
+                    "occupancy": int(occupancy_count),
+                    "sharpness": float(score),
+                    "die": die_id,
+                    "value": None,
+                }
+                file_location = saveLabeledFrame(masked, meta, tests_directory)
                 ### Comment these fields out for debugging without calling AI
                 #value = readDie(file_location)
                 #print(value)
-            elif occupancy_count >= outlier_occupancy and occupancy_count >= outlier_occupancy:
+            elif occupancy_count >= outlier_occupancy :
                 print("Object obscuring camera. Roll again.")
     finally:
-        firstRunReset()
+        #firstRunReset()
         cv2.destroyAllWindows()
         capture.release()
 
 
 mainALT2()
-
-
-'''
-            if score < sharpness_floor:
-                print(f"Focus lost ({score:.0f}) - roll again")
-                continue
-            processed_frame = grabProcessedFrame(frame, roi)
-            mask, occupancy_count = occupancyCount(processed_frame, background, poly_mask)
-            if occupancy_count > partial_occupancy_min and occupancy_count < occupancy_threshold:
-                print("Roll not fully in frame. Roll again.")
-            elif occupancy_count >= occupancy_threshold and occupancy_count < outlier_occupancy:
-                frame_copy = frame.copy()
-                roi_crop = cropToRoi(frame_copy, roi)
-                masked = cv2.bitwise_and(roi_crop, roi_crop, mask=poly_mask)
-                file_location = saveSingleFrame(masked)
-
-                ### Comment these fields out for debugging without calling AI
-                #value = readDie(file_location)
-                #print(value)
-            elif occupancy_count >= outlier_occupancy:
-                print("Object obscuring camera. Roll again.")
-'''

@@ -13,6 +13,7 @@ max_focus_value = 255
 #capture_generator
 coarse_sweep_step_size = 20
 fine_sweep_step_size = 5
+die_id = "dark_red"
 
 #ai variables
 ai_project_name = "dice-cam"
