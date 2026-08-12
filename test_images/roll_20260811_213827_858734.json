@@ -1,0 +1,14 @@
+{
+    "bbox": [
+        606,
+        511,
+        52,
+        61
+    ],
+    "occupancy": 3697,
+    "sharpness": 61.93009997428704,
+    "die": "dark_red",
+    "value": 14,
+    "reject_reason": null,
+    "light_on": false
+}

@@ -1,5 +1,5 @@
 from settle_detector import cameraCalibration, dieRollDetection, cropToRoi
-from frame_initialization import firstRunROIConfig, occupancyCount, buildTrayGeometry, grabProcessedFrame
+from frame_initialization import firstRunROIConfig, occupancyCount, buildTrayGeometry, grabProcessedFrame, validCapture
 from capture_generator import  saveSingleFrame, sharpestFrame, focusFineSweep, saveLabeledFrame, tests_directory
 from llm_gemini import readDie
 from general_variables import *
@@ -99,6 +99,10 @@ def mainALT2():
                     continue
                 die = max(contours, key=cv2.contourArea)
                 x, y, w, h = cv2.boundingRect(die)
+                ok, reason = validCapture(x ,y ,w, h, occupancy_count, masked.shape)
+                if not ok:
+                    print("Rejected:", reason)
+                    continue
                 y1 = max(0, y-crop_pad)
                 x1 = max(0, x-crop_pad)
                 y2 = min(masked.shape[0], y + h + crop_pad)
@@ -110,6 +114,8 @@ def mainALT2():
                     "sharpness": float(score),
                     "die": die_id,
                     "value": None,
+                    "reject_reason": None,
+                    "light_on": True,
                 }
                 file_location = saveLabeledFrame(masked, meta, tests_directory)
                 ### Comment these fields out for debugging without calling AI
@@ -118,7 +124,7 @@ def mainALT2():
             elif occupancy_count >= outlier_occupancy :
                 print("Object obscuring camera. Roll again.")
     finally:
-        #firstRunReset()
+        firstRunReset()
         cv2.destroyAllWindows()
         capture.release()
 

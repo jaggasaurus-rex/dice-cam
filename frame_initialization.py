@@ -20,12 +20,23 @@ def firstRunROIConfig():
     cv2.destroyAllWindows()
     return cfg
 
-
 def occupancyCount(processed_frame, background, poly_mask):
     diff = cv2.absdiff(processed_frame, background)
     _, changed = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
     changed = cv2.bitwise_and(changed, poly_mask)
     return changed, cv2.countNonZero(changed)
+
+def validCapture(x, y, w, h, occupancy, frame_shape):
+    if h == 0:
+        return False, "zero-height bbox"
+    aspect = w/h
+    if aspect < min_aspect or aspect > max_aspect:
+        return False, f"bbox not square enough ({w}x{h}, aspect {aspect:.2f})"
+    if occupancy < occupancy_threshold or occupancy > outlier_occupancy:
+        return False, f"occupancy out of range ({occupancy})"
+    if x ==0 or y ==0 or (x+w) >= frame_shape[1] or (y + h) >= frame_shape[0]:
+        return False, f"bbox touches frame border ({x},{y},{w},{h})"
+    return True, "ok"
 
 def grabProcessedFrame(frame, roi):
     cropped = cropToRoi(frame, roi)

@@ -8,5 +8,7 @@
     "occupancy": 3516,
     "sharpness": 140.11702341439113,
     "die": "dark_red",
-    "value": null
+    "value": 1,
+    "reject_reason": null,
+    "light_on": false
 }

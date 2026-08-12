@@ -1,12 +1,12 @@
 {
     "bbox": [
-        563,
-        329,
-        89,
-        90
+        543,
+        556,
+        80,
+        86
     ],
-    "occupancy": 3814,
-    "sharpness": 143.8844105514625,
+    "occupancy": 6298,
+    "sharpness": 72.33498656661979,
     "die": "dark_red",
     "value": 2,
     "reject_reason": null,
