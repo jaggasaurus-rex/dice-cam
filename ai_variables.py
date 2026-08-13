@@ -73,6 +73,11 @@ near it is neither a 6 nor a 9.
 The value is a whole number from 1 to 20 inclusive, read from a single
 face.
 
+The numeral 1 is never a default. If the top face is unreadable, set
+value to null — do not report 1. Only report 1 when you can see a
+complete, full-height numeral stroke on the top face and no other
+digit beside it.
+
 FIELDS
 die_location: where the die sits in the frame, its rough apparent size,
   and whether it is near a tray wall or in the open. If no die is

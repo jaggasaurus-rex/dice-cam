@@ -1,0 +1,475 @@
+[
+    {
+        "name": "roll_20260810_173300_102886",
+        "truth": 4,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 4,
+        "confidence": "medium",
+        "others": [
+            18,
+            11,
+            14,
+            20
+        ]
+    },
+    {
+        "name": "roll_20260810_173349_461117",
+        "truth": 4,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 4,
+        "confidence": "medium",
+        "others": [
+            14,
+            18,
+            11,
+            1
+        ]
+    },
+    {
+        "name": "roll_20260810_173357_590701",
+        "truth": 6,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 9,
+        "confidence": "medium",
+        "others": [
+            14,
+            16,
+            20
+        ]
+    },
+    {
+        "name": "roll_20260810_173414_950914",
+        "truth": 1,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 1,
+        "confidence": "medium",
+        "others": [
+            13,
+            16,
+            9
+        ]
+    },
+    {
+        "name": "roll_20260810_173422_551645",
+        "truth": 2,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 20,
+        "confidence": "medium",
+        "others": [
+            2,
+            12,
+            14,
+            18,
+            4,
+            16
+        ]
+    },
+    {
+        "name": "roll_20260811_213553_139496",
+        "truth": 18,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 1,
+        "confidence": "medium",
+        "others": [
+            5,
+            18,
+            4,
+            2,
+            20
+        ]
+    },
+    {
+        "name": "roll_20260811_213607_918934",
+        "truth": 10,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 10,
+        "confidence": "medium",
+        "others": [
+            8,
+            17,
+            12,
+            15
+        ]
+    },
+    {
+        "name": "roll_20260811_213618_992804",
+        "truth": 13,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 1,
+        "confidence": "medium",
+        "others": [
+            15,
+            13
+        ]
+    },
+    {
+        "name": "roll_20260811_213629_534740",
+        "truth": null,
+        "reject_reason": "motion_blur",
+        "light": null,
+        "predicted": null,
+        "confidence": "low",
+        "others": []
+    },
+    {
+        "name": "roll_20260811_213646_707122",
+        "truth": null,
+        "reject_reason": "motion_blur",
+        "light": null,
+        "predicted": null,
+        "confidence": "low",
+        "others": []
+    },
+    {
+        "name": "roll_20260811_213657_650728",
+        "truth": 11,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 11,
+        "confidence": "medium",
+        "others": [
+            10,
+            13,
+            9,
+            4,
+            1
+        ]
+    },
+    {
+        "name": "roll_20260811_213751_920421",
+        "truth": 20,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 20,
+        "confidence": "medium",
+        "others": [
+            8,
+            14,
+            12,
+            1,
+            5
+        ]
+    },
+    {
+        "name": "roll_20260811_213803_037043",
+        "truth": 6,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 9,
+        "confidence": "medium",
+        "others": [
+            14,
+            16,
+            9,
+            18
+        ]
+    },
+    {
+        "name": "roll_20260811_213817_073223",
+        "truth": 17,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 13,
+        "confidence": "medium",
+        "others": [
+            17,
+            1,
+            10
+        ]
+    },
+    {
+        "name": "roll_20260811_213827_858734",
+        "truth": 14,
+        "reject_reason": null,
+        "light": null,
+        "predicted": null,
+        "confidence": "low",
+        "others": [
+            14,
+            3
+        ]
+    },
+    {
+        "name": "roll_20260811_215737_108767",
+        "truth": 10,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 10,
+        "confidence": "medium",
+        "others": [
+            12,
+            8,
+            17,
+            11
+        ]
+    },
+    {
+        "name": "roll_20260811_215747_559043",
+        "truth": 2,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 2,
+        "confidence": "medium",
+        "others": [
+            12,
+            18,
+            20
+        ]
+    },
+    {
+        "name": "roll_20260811_215752_485603",
+        "truth": 7,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 15,
+        "confidence": "medium",
+        "others": [
+            1,
+            7
+        ]
+    },
+    {
+        "name": "roll_20260811_215757_203744",
+        "truth": 19,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 6,
+        "confidence": "medium",
+        "others": [
+            19,
+            16,
+            3
+        ]
+    },
+    {
+        "name": "roll_20260811_215826_487087",
+        "truth": 19,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 17,
+        "confidence": "medium",
+        "others": [
+            6,
+            19,
+            3
+        ]
+    },
+    {
+        "name": "roll_20260811_220103_732211",
+        "truth": 19,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 19,
+        "confidence": "medium",
+        "others": [
+            3,
+            6,
+            11,
+            13
+        ]
+    },
+    {
+        "name": "roll_20260811_220109_285795",
+        "truth": 4,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 11,
+        "confidence": "medium",
+        "others": [
+            18,
+            17,
+            4,
+            14,
+            1
+        ]
+    },
+    {
+        "name": "roll_20260811_220115_013810",
+        "truth": 11,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 17,
+        "confidence": "medium",
+        "others": [
+            13,
+            19,
+            6,
+            14,
+            10
+        ]
+    },
+    {
+        "name": "roll_20260811_220120_517780",
+        "truth": 2,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 2,
+        "confidence": "medium",
+        "others": [
+            18,
+            20,
+            14
+        ]
+    },
+    {
+        "name": "roll_20260811_220125_556296",
+        "truth": 10,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 10,
+        "confidence": "medium",
+        "others": [
+            17,
+            8,
+            1,
+            20
+        ]
+    },
+    {
+        "name": "roll_20260811_220130_551127",
+        "truth": 19,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 1,
+        "confidence": "medium",
+        "others": [
+            19,
+            3,
+            6,
+            11,
+            16
+        ]
+    },
+    {
+        "name": "roll_20260811_220135_842075",
+        "truth": 16,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 1,
+        "confidence": "medium",
+        "others": [
+            16,
+            8,
+            6,
+            14,
+            20
+        ]
+    },
+    {
+        "name": "roll_20260811_220142_021395",
+        "truth": 8,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 8,
+        "confidence": "medium",
+        "others": [
+            10,
+            16,
+            20
+        ]
+    },
+    {
+        "name": "roll_20260811_220154_353178",
+        "truth": 9,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 17,
+        "confidence": "medium",
+        "others": [
+            19,
+            6,
+            11
+        ]
+    },
+    {
+        "name": "roll_20260811_220200_403306",
+        "truth": 6,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 6,
+        "confidence": "medium",
+        "others": [
+            19,
+            1,
+            14
+        ]
+    },
+    {
+        "name": "roll_20260811_220207_444563",
+        "truth": 6,
+        "reject_reason": null,
+        "light": null,
+        "predicted": null,
+        "confidence": "low",
+        "others": [
+            14,
+            16,
+            6
+        ]
+    },
+    {
+        "name": "roll_20260811_220212_580979",
+        "truth": 15,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 15,
+        "confidence": "medium",
+        "others": [
+            12,
+            8,
+            10,
+            7
+        ]
+    },
+    {
+        "name": "roll_20260811_220220_321251",
+        "truth": 18,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 18,
+        "confidence": "medium",
+        "others": [
+            13,
+            5,
+            2,
+            15
+        ]
+    },
+    {
+        "name": "roll_20260811_220225_170465",
+        "truth": 13,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 13,
+        "confidence": "medium",
+        "others": [
+            17,
+            5,
+            1
+        ]
+    },
+    {
+        "name": "roll_20260811_220230_310179",
+        "truth": 14,
+        "reject_reason": null,
+        "light": null,
+        "predicted": 17,
+        "confidence": "medium",
+        "others": [
+            14,
+            20,
+            6,
+            9,
+            11,
+            1
+        ]
+    }
+]
