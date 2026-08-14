@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, Literal
+from general_variables import ai_output_tokens
 
 
 class DieReading(BaseModel):
@@ -107,7 +108,7 @@ Reasoning from overall shape rather than resolved strokes is at best
 "medium". Set value to null whenever the top face cannot be read.
 """
 temperature_var = 0.0
-max_output_tokens_var = 2048
+max_output_tokens_var = ai_output_tokens
 response_mime_type_var = "application/json"
 response_schema_var = DieReading
 
@@ -118,7 +119,7 @@ class SixNineReading(BaseModel):
     dot_present: bool
     dot_position: str
     orientation_reasoning: str
-    value: Optional[Literal[6, 9]]
+    value: Optional[Literal["6", "9"]]
     confidence: Literal["high", "medium", "low"]
 
 
@@ -134,37 +135,47 @@ not your job.
 Your only task is to decide whether the numeral on that face is a 6 or
 a 9.
 
+Before deciding between 6 and 9, confirm the top face actually carries a single glyph of
+that kind. If it shows two digits, or a numeral that is clearly neither
+a 6 nor a 9, set is_six_or_nine to false and value to null. Saying "this
+is not a 6 or a 9" is a correct and useful answer.
+
 WHY THIS IS HARD
-A 6 rotated 180 degrees is indistinguishable from a 9. The glyph shape
-alone can never settle it. These dice therefore print a DOT beside the
+A 6 rotated 180 degrees is indistinguishable from a 9. These dice therefore print a DOT beside the
 numeral, always at the bottom of the numeral as it was designed. The
 dot is the only reliable information. Find the dot first.
 
+The dot is printed immediately after the numeral at its base, like a
+full stop. In the numeral's own upright orientation the dot therefore
+sits at the BOTTOM-RIGHT of the glyph. Any other apparent position means
+the numeral is rotated, and the dot tells you by how much.
+
+A real dot is small, round, clearly separate from the glyph, and sits
+immediately beside it. A mark in the middle of the face, or one as large
+as the numeral, or one you are inferring rather than seeing, is not a
+dot. If you cannot point to a genuine dot, set dot_present to false and
+value to null.
+
+Do not analyse loops and stems — at this resolution you cannot tell one
+end of the glyph from the other reliably, and guessing at it will make
+you wrong.
+
 PROCEDURE
-1. Describe the glyph on the top face: the loop, the stem, and their
-   relationship. Do not name a digit yet.
-2. Confirm the face really does carry a 6-or-9 style glyph — a single
-   closed loop with a single stem curving away from it. If instead you
-   see two digits, or a numeral that is clearly something else, say so:
-   set is_six_or_nine to false and value to null. You are permitted to
-   conclude the earlier reader was wrong about the digit.
-3. Find the dot. It is a small round or short mark next to the glyph,
-   separate from it and smaller than it. Because the die landed at a
-   random rotation, the dot may sit below, above, left, right, or
-   diagonally from the numeral. Report where it sits relative to the
-   glyph in dot_position.
-4. If there is no dot anywhere beside the glyph, set dot_present to
-   false and value to null. Without a dot the numeral cannot be
-   resolved, and a guess is worse than no answer.
-5. With the dot located, treat the dot's side as DOWN. Mentally rotate
-   the face so the dot is at the bottom. Then read the glyph in that
-   orientation:
-       - loop at the BOTTOM (nearest the dot), stem rising up and away
-         from the dot  ->  the numeral is 6
-       - loop at the TOP (furthest from the dot), stem descending
-         toward the dot  ->  the numeral is 9
-   State this reasoning explicitly in orientation_reasoning before
-   giving a value.
+1. Read the glyph exactly as it appears on the screen, without rotating
+   anything. If it reads clearly as a 6 or a 9, record which. If it sits
+   sideways and reads as neither, note that instead and go to step 2.
+2. Find the dot and say where it sits relative to that glyph: below,
+   below-right, above, above-left, or directly to the left or right at
+   mid-height.
+3. Apply this rule:
+     - If dot BELOW or BELOW-RIGHT of the glyph as displayed -> the numeral
+       is upright, and your reading from step 1 is correct.
+     - Else if dot ABOVE or ABOVE-LEFT of the glyph as displayed -> the numeral
+       is upside down. Mentally turn the image 180 degrees 
+       and re-read the glyph in that orientation.
+     - Else if dot directly LEFT or RIGHT at mid-height -> the numeral is rotated
+       roughly 90 degrees. Mentally turn the image so the dot moves to
+       the bottom-right, then re-read the glyph in that orientation.
 
 The dot is punctuation. It is never a digit, never a 1, and never part
 of a two-digit number.

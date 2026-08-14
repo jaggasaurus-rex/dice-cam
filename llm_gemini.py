@@ -20,7 +20,7 @@ config = types.GenerateContentConfig(
 )
 
 sixnine_config = types.GenerateContentConfig(
-    system_instructions=av.sixnine_instruction_var,
+    system_instruction=av.sixnine_instruction_var,
     temperature=av.temperature_var,
     max_output_tokens=av.max_output_tokens_var,
     response_mime_type=av.response_mime_type_var,

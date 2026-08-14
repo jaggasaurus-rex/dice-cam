@@ -119,12 +119,12 @@ def mainALT2():
                 }
                 file_location = saveLabeledFrame(masked, meta, tests_directory)
                 ### Comment these fields out for debugging without calling AI
-                #value = readDie(file_location)
-                #print(value)
+                response = readDie(file_location)
+                print(response.value)
             elif occupancy_count >= outlier_occupancy :
                 print("Object obscuring camera. Roll again.")
     finally:
-        firstRunReset()
+        #firstRunReset()
         cv2.destroyAllWindows()
         capture.release()
 
