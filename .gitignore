@@ -7,3 +7,7 @@ archive/
 test/
 internal_variables.py
 general_testing_playground.py
+test_results/
+tests/
+crops_p50_u4/
+test_images/

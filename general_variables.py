@@ -4,7 +4,7 @@ occupancy_threshold = 2000
 partial_occupancy_min = 200
 outlier_occupancy = 8000
 crop_pad = 10
-upscale_val = 4
+upscale_val = 2
 sharpness_floor = 40
 
 #frame initialization
@@ -22,3 +22,5 @@ die_id = "dark_red"
 #ai variables
 ai_project_name = "dice-cam"
 ai_location = "us-central1"
+ai_thinking_budget = 8196
+ai_model = "gemini-2.5-pro"

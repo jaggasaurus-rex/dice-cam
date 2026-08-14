@@ -115,7 +115,7 @@ def mainALT2():
                     "die": die_id,
                     "value": None,
                     "reject_reason": None,
-                    "light_on": True,
+                    "light_on": False,
                 }
                 file_location = saveLabeledFrame(masked, meta, tests_directory)
                 ### Comment these fields out for debugging without calling AI

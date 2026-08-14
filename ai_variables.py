@@ -19,8 +19,6 @@ photograph.
 STEP 1 — THE DIE FILLS THE FRAME
 This image is a tight crop of a single d20 resting on felt. The die is
 the large object at the centre of the frame and occupies much of it.
-There is nothing else to identify — do not look for it, it is already
-in front of you.
 
 The surrounding felt, and sometimes a strip of the tray wall or a cast
 shadow at the edge of the crop, are background only. Felt and die
@@ -112,3 +110,77 @@ temperature_var = 0.0
 max_output_tokens_var = 2048
 response_mime_type_var = "application/json"
 response_schema_var = DieReading
+
+
+class SixNineReading(BaseModel):
+    glyph_description: str
+    is_six_or_nine: bool
+    dot_present: bool
+    dot_position: str
+    orientation_reasoning: str
+    value: Optional[Literal[6, 9]]
+    confidence: Literal["high", "medium", "low"]
+
+
+sixnine_instruction_var = """
+You are resolving a single ambiguity on one face of a 20-sided die.
+
+Another reader has already determined which triangular face is the top
+face — the rolled result — and believes its numeral is either a 6 or a
+9. Its description of that face's position is given to you. Trust it.
+Do not re-examine which face is on top. That question is settled and is
+not your job.
+
+Your only task is to decide whether the numeral on that face is a 6 or
+a 9.
+
+WHY THIS IS HARD
+A 6 rotated 180 degrees is indistinguishable from a 9. The glyph shape
+alone can never settle it. These dice therefore print a DOT beside the
+numeral, always at the bottom of the numeral as it was designed. The
+dot is the only reliable information. Find the dot first.
+
+PROCEDURE
+1. Describe the glyph on the top face: the loop, the stem, and their
+   relationship. Do not name a digit yet.
+2. Confirm the face really does carry a 6-or-9 style glyph — a single
+   closed loop with a single stem curving away from it. If instead you
+   see two digits, or a numeral that is clearly something else, say so:
+   set is_six_or_nine to false and value to null. You are permitted to
+   conclude the earlier reader was wrong about the digit.
+3. Find the dot. It is a small round or short mark next to the glyph,
+   separate from it and smaller than it. Because the die landed at a
+   random rotation, the dot may sit below, above, left, right, or
+   diagonally from the numeral. Report where it sits relative to the
+   glyph in dot_position.
+4. If there is no dot anywhere beside the glyph, set dot_present to
+   false and value to null. Without a dot the numeral cannot be
+   resolved, and a guess is worse than no answer.
+5. With the dot located, treat the dot's side as DOWN. Mentally rotate
+   the face so the dot is at the bottom. Then read the glyph in that
+   orientation:
+       - loop at the BOTTOM (nearest the dot), stem rising up and away
+         from the dot  ->  the numeral is 6
+       - loop at the TOP (furthest from the dot), stem descending
+         toward the dot  ->  the numeral is 9
+   State this reasoning explicitly in orientation_reasoning before
+   giving a value.
+
+The dot is punctuation. It is never a digit, never a 1, and never part
+of a two-digit number.
+
+FIELDS
+glyph_description: the loop and stem you see, with no digit named.
+is_six_or_nine: true only if the top face carries a single 6-or-9 style
+  glyph.
+dot_present: true only if you can actually see a dot beside the glyph.
+dot_position: where the dot sits relative to the glyph, or "none".
+orientation_reasoning: the rotation you performed and what it revealed.
+value: 6, 9, or null.
+confidence:
+  high   - dot clearly visible, glyph strokes clearly resolved.
+  medium - dot visible but faint, or glyph soft.
+  low    - dot uncertain or glyph partly obscured.
+Set value to null whenever dot_present is false or is_six_or_nine is
+false. Never guess between 6 and 9.
+"""
