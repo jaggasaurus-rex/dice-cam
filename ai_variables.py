@@ -13,16 +13,21 @@ class DieReading(BaseModel):
 
 
 system_instruction_var = """
-You are reading a single 20-sided die (d20) from an uncropped overhead
-photograph of a hexagonal red dice tray.
+You are reading a single 20-sided die (d20) from a close-up overhead
+photograph.
 
-STEP 1 — FIND THE DIE
-The die occupies roughly one percent of the frame and can be anywhere
-in the tray, usually well away from the center of the photograph.
-Nearly the whole image is empty red felt. Scan for the one object that
-is neither felt nor tray wall: a small dark, purple, or maroon
-polyhedron with pale numerals. Fix its position and extent, and report
-them in die_location.
+STEP 1 — THE DIE FILLS THE FRAME
+This image is a tight crop of a single d20 resting on felt. The die is
+the large object at the centre of the frame and occupies much of it.
+There is nothing else to identify — do not look for it, it is already
+in front of you.
+
+The surrounding felt, and sometimes a strip of the tray wall or a cast
+shadow at the edge of the crop, are background only. Felt and die
+colours vary between photographs and carry no meaning; never use colour
+to decide what anything is. The die is simply the polyhedron in the
+middle, distinguishable from the flat background by its facets, its
+edges, and the numerals printed on it.
 
 STEP 2 — LOCATE THE TOP FACE BY GEOMETRY
 Do this before reading any numeral. An icosahedron shows several
@@ -35,12 +40,10 @@ Every other visible face has at least one side lying along the die's
 outer silhouette. A triangle touching the silhouette at a single corner
 still qualifies, provided all three of its sides are shared.
 
-When the die rests near a tray wall it is photographed at an angle, so
-more faces are visible and the enclosed triangle sits offset from the
-middle of the die's outline, displaced toward the nearby wall and away
-from the photograph's center. If no triangle has all three sides
-shared, the angle is too steep to resolve: set value to null and
-confidence to "low".
+The die may have been photographed at a slight angle, so more faces
+than usual can be visible and the top face may sit a little off the
+exact centre of the die. If no triangle has all three sides shared, set
+value to null and confidence to "low".
 
 Describe the triangle's position and shape in top_face_position, with
 no numerals — you have not read it yet. The top face is whichever
@@ -101,7 +104,7 @@ confidence:
            partly turned away.
   low    - small, shadowed, against a wall, blurred, glare-damaged, or
            the enclosed triangle could not be determined.
-Given the die's size in these photographs, "high" is rarely justified.
+
 Reasoning from overall shape rather than resolved strokes is at best
 "medium". Set value to null whenever the top face cannot be read.
 """

@@ -5,6 +5,28 @@ import datetime
 import cv2
 from llm_gemini import readDie, DieReadError
 
+def deriveCrop(record, out_dir, pad_ratio=0.5, upscale=4):
+    img = cv2.imread(record["png"])
+    if img is None:
+        return None
+    x, y, w, h = record["bbox"]
+    pad = int(max(w, h) * pad_ratio)
+
+    y1 = max(0, y - pad)
+    x1 = max(0, x - pad)
+    y2 = min(img.shape[0], y + h + pad)
+    x2 = min(img.shape[1], x + w + pad)
+    crop = img[y1:y2, x1:x2]
+
+    if upscale != 1:
+        crop = cv2.resize(crop, None, fx=upscale, fy=upscale, interpolation=cv2.INTER_CUBIC)
+
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, record["name"] + ".png")
+    cv2.imwrite(out_path, crop)
+    return out_path
+
+
 def saveTestResults(results):
     test_result_repo = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_results")
     stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S_%f')
@@ -13,11 +35,18 @@ def saveTestResults(results):
     with open(file_location , "w") as f:
             json.dump(results, f, indent=4)
 
-def runTestSet(records):
+def runTestSet(records, crop_dir=None, pad_ratio=0.5, upscale=4):
     results = []
     for r in records:
+        image_path = r["png"]
+        if crop_dir:
+            image_path = deriveCrop(r, crop_dir, pad_ratio, upscale)
+            if image_path is None:
+                print(r["name"], "crop failed")
+                continue
+
         try:
-            reading = readDie(r["png"])
+            reading = readDie(image_path)
         except DieReadError as e:
             print(r["name"], "error:", e)
             reading = None
@@ -128,6 +157,6 @@ def scoreResults(results):
 tests_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_images")
 
 records, problems = loadTestSet(tests_directory)
-results = runTestSet(records)
+results = runTestSet(records, crop_dir="crops_p50_u4", pad_ratio=0.5, upscale=4)
 scoreResults(results)
 saveTestResults(results)

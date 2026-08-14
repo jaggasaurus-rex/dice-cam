@@ -16,7 +16,7 @@ config = types.GenerateContentConfig(
     max_output_tokens=av.max_output_tokens_var,
     response_mime_type=av.response_mime_type_var,
     response_schema=av.response_schema_var,
-    thinking_config=types.ThinkingConfig(thinking_budget=512)
+    thinking_config=types.ThinkingConfig(thinking_budget=8192)
 )
 client = genai.Client(
     vertexai=True,
@@ -32,7 +32,7 @@ def readDie(path):
 
     try:
         response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-2.5-flash-lite",
                 contents=[part, "Read the top face of this d20."],
                 config=config
             )
