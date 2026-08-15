@@ -11,3 +11,5 @@ test_results/
 tests/
 crops_p50_u4/
 test_images/
+toolguide.md
+HANDOFF.md

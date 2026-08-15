@@ -1762,3 +1762,153 @@ As measured 2026-08-07 on this key: `gemini-3.6-flash`, `gemini-3.1-flash-lite`,
   throttling. Measure single-call accuracy before spending that budget.
 - **Treat HTTP 429 as a normal condition**, not an exception — it should surface
   as "try again" in the UI, never a traceback.
+
+---
+
+## Gemini on Vertex AI — added 2026-08-14
+
+The project moved from the free-tier Developer API to **Vertex AI**. The two
+notes above about free-tier limits and about `gemini-3.5-flash` returning 503
+describe the Developer API and no longer apply to this codebase.
+
+```python
+client = genai.Client(
+    vertexai=True,
+    project=ai_project_name,     # "dice-cam"
+    location=ai_location,        # "global"
+)
+```
+
+`location="global"` works and is what the project uses; regional values such as
+`us-central1` restrict which models are servable. **`gemini-3.5-flash` works on
+Vertex** and is the current production model — measured better than
+`gemini-2.5-pro` on this task, with zero API nulls where pro threw three.
+
+### types.ThinkingConfig
+
+```
+Function:
+types.ThinkingConfig(thinking_budget=None, include_thoughts=None)
+    thinking_budget: tokens the model may spend reasoning before it answers
+        0: disabled — measured 3 rows worse on this task (43/53 vs 45/53)
+        2096: current production value
+        higher is NOT better: 16384 on 2.5-pro reintroduced a face-selection
+            error and caused MORE truncation, because reasoning expands to
+            fill the space it is given
+    include_thoughts: return the reasoning text; leave unset
+```
+
+**`thinking_budget` and `max_output_tokens` are separate budgets, and the
+thinking tokens count against the output cap.** A large thinking budget with a
+small cap truncates mid-JSON. This project lost a full run to setting
+`ai_output_tokens` when it meant `ai_thinking_budget` — name the variables
+distinctly.
+
+### max_output_tokens — valid range
+
+```
+Unable to submit request because it has a maxOutputTokens value of 0
+but the supported range is from 1 (inclusive) to 65537 (exclusive).
+```
+
+A 400 INVALID_ARGUMENT, not a silent clamp. **The cap is not free** in a
+behavioural sense even though unused tokens cost nothing: raising it lets the
+model reason longer, which changed answers on this task. Treat it as an
+experimental variable, not a safety margin.
+
+Four free-text fields in the response schema are a significant share of the
+output budget. If truncation appears, instruct the model to keep descriptive
+fields to one sentence each before raising the cap.
+
+### Checking finish_reason — do this, always
+
+`response.parsed` returns `None` on a truncated response with no exception
+raised. Silent data loss: an early run discarded 6 of 35 rows this way before
+the cause was logged.
+
+```python
+if not response.candidates:
+    print(f"{path}: no candidates")          # also avoids IndexError on a block
+    return None
+finish = response.candidates[0].finish_reason
+if finish != types.FinishReason.STOP:
+    print(f"{path}: finish_reason={finish}") # MAX_TOKENS, SAFETY, RECITATION
+    return None
+if response.parsed is None:
+    print(f"{path}: parsed is None (schema mismatch)")
+return response.parsed
+```
+
+`response.candidates` can be empty or `None` when a request is blocked, so
+index `[0]` only after the truthiness check.
+
+### response.usage_metadata
+
+```
+.prompt_token_count      input, including image tiles
+.thoughts_token_count    reasoning tokens on thinking models
+.candidates_token_count  the visible response
+.total_token_count
+```
+
+The way to tell whether a MAX_TOKENS truncation came from thinking or from a
+verbose response body. Log it before the `finish_reason` check so it is
+available on failed calls too.
+
+### Error hierarchy — `ClientError` does not catch 5xx
+
+```
+errors.APIError          base
+├── errors.ClientError   4xx  (400, 404, 429)
+└── errors.ServerError   5xx  (500, 503)
+```
+
+**A `503` branch inside `except errors.ClientError` is unreachable.** This bug
+lived in `llm_gemini.py` for some time. Catch the base class when handling both,
+and keep the specific branch first since `ClientError` subclasses `APIError`:
+
+```python
+except errors.ClientError as e:
+    if e.code == 429: ...
+except errors.APIError as e:
+    if getattr(e, "code", None) == 503: ...
+    raise
+```
+
+### response_schema gotchas (Pydantic → Vertex Schema)
+
+**Enum values must be strings.** `Literal[6, 9]` fails conversion:
+
+```
+ValidationError: 2 validation errors for Schema
+properties.value.enum.0  Input should be a valid string [input_value=6]
+```
+
+Use `Optional[Literal["6", "9"]]` and cast at the call site. The constraint is
+still worth having — it collapses the output space to two options.
+
+**Field order is generation order.** The model fills fields in the order they
+are declared on the model, so declaration order is a reasoning-control device:
+put observation fields before conclusion fields to force a commitment before an
+answer. Measured on this project — moving `visible_faces` ahead of
+`top_face_position` reintroduces the error the ordering exists to prevent.
+
+**A misspelled config parameter surfaces as `extra_forbidden`**, not as a
+missing value:
+
+```
+ValidationError for GenerateContentConfig
+system_instructions  Extra inputs are not permitted [type=extra_forbidden]
+```
+
+(`system_instruction` is singular.) Whenever you see `extra_forbidden`, it is a
+naming problem, not a value problem.
+
+### Determinism
+
+`temperature=0.0` is near-deterministic but not guaranteed. Measured here:
+`gemini-2.5-pro` varied by ±2 rows across identical runs, with the variance
+concentrated on a handful of genuinely ambiguous images rather than spread
+across the set. `gemini-3.5-flash` produced identical first-pass results across
+three consecutive runs. **Check which rows moved, not just the total** — a
+one-row difference is not a result.

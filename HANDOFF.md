@@ -1,6 +1,8 @@
 # dice-cam — Handoff Summary
 
-Status as of 2026-08-07.
+Status as of 2026-08-14. The 2026-08-07 summary immediately below is kept for
+history; read "Status update — 2026-08-14" first, as it supersedes several of
+the numbers and decisions in it.
 
 **Where the project stands:** build-order stages 1–4 are built and working. The
 program detects a settled die, confirms the tray is occupied, crops tightly to the
@@ -26,6 +28,174 @@ code (see "How to work with Tyler on this").
 Sections describing design decisions still hold unless marked otherwise. Anything
 marked **DONE**, **CLOSED**, or **Parked** reflects work already completed or
 deliberately deferred — do not re-litigate those.
+
+## Status update — 2026-08-14
+
+The week's work was almost entirely on **classifier accuracy**, and it is now
+measured rather than estimated. The "7/7 on the clean capture set" figure above
+is obsolete — it was 7 images, hand-picked, and did not survive contact with a
+real set.
+
+### The measurement harness — BUILT, and it is the important artifact
+
+`test_set.py` plus `test_images/` and `test_results/`. This is the thing that
+makes every further decision cheap, and it should be maintained.
+
+- `test_images/` holds **55 captures, 53 labeled**, as matched `roll_*.png` +
+  `roll_*.json` sidecar pairs. The sidecar carries `bbox`, `occupancy`,
+  `sharpness`, `die`, and the hand-entered `value`.
+- **Labels come from the physical die at roll time, never from reading the
+  image back.** This is not fussiness: two images were mislabeled by reading
+  them off-screen (a 7 read as 15, a 9 read as 19) and a test set that
+  certifies a wrong answer optimises everything downstream toward it.
+- Two captures are deliberate negatives, labeled `"reject_reason":
+  "motion_blur"` with a null value. They test the capture gate, not the model.
+- `loadTestSet` → `runTestSet` → `scoreResults` / `scoreSplit` →
+  `saveTestResults`. Results files carry a `summary` block first, then
+  `results`; older result files are bare arrays, so loaders need
+  `data["results"] if isinstance(data, dict) else data`.
+- **The set is ~47% sixes and nines on purpose.** A real d20 rolls 6 or 9 on
+  10% of rolls. Always score the two populations separately (`scoreSplit`) and
+  weight to 90/10 before quoting a real-world number. A single blended figure
+  is misleading in both directions.
+
+### Locked-in configuration — do not drift these without a run
+
+```
+model               gemini-3.5-flash        (Vertex, location "global")
+thinking_budget     2096
+max_output_tokens   8196
+crop                pad_ratio 0.5, centred on bbox, upscaled
+specialist          OFF
+temperature         0.0
+```
+
+Measured on the 53-image labeled set with this config:
+
+```
+overall (skewed set)   45/53   84.9%
+non-6/9                27/28   96.4%
+6/9 subset             18/25   72.0%
+weighted to real rolls          ~94%
+```
+
+For contrast, the same images on whole-tray captures scored **48%**. The single
+largest gain in the project was cropping.
+
+### Why cropping mattered — the geometry failure
+
+The dominant error mode was never OCR. Measured on whole-tray images, **73% of
+wrong answers had the true value present in `other_face_numerals`** — the model
+read the right numeral and assigned it to the wrong triangle. Cropping collapsed
+that to near zero, because "which triangle is the top face" becomes "the one in
+the middle of the picture" once the die fills the frame.
+
+`other_face_numerals` exists to make that measurable. Keep it.
+
+### The 6/9 wall — genuinely stuck at ~72%
+
+Six of seven remaining 6/9 errors are **a 6 read as a 9**: a 6 that landed
+rotated 180° looks exactly like a 9, and the model reads the raw glyph without
+applying the dot correction. All at `high` confidence.
+
+Things tried, all measured, none of which moved it:
+
+- three rewrites of the dot instruction in the main prompt
+- thinking budget 0, 2096, and higher
+- `gemini-2.5-pro` vs `gemini-3.5-flash`
+- a dedicated 6/9 sub-agent (see below)
+
+**Do not spend more prompt iterations here.** The dot is 2–3 pixels at the
+current ~95px die size. This is an optics problem — camera distance, sensor
+resolution, and lighting — not a wording problem.
+
+### The 6/9 specialist sub-agent — TRIED AND REJECTED
+
+A second call fired when the first pass returned 6 or 9, given the first pass's
+`top_face_position` and asked only to resolve orientation from the dot.
+`SixNineReading` and `sixNineSubagent` remain in the code, off by default.
+
+Across every version its flips ran **8 fixed / 7 broke** — a coin flip. The
+first version was actively harmful (−4 rows).
+
+Root cause, and it generalises: the design asked the model to "read the glyph
+exactly as displayed, without rotating" and then swap if the dot was above.
+**Vision models normalise orientation automatically** — step one already
+contains the correction, so the swap applies it twice and inverts correct
+answers. Any future design that depends on the model reporting raw,
+un-normalised pixel appearance will fail the same way.
+
+If revisited, make it a **verifier, not an overrider**: two independent reads,
+`null` on disagreement. That converts coin-flips into re-rolls rather than
+inversions. Adopt only if `fixed / (fixed + broke)` is clearly above 0.5 across
+two or more runs.
+
+### Prompt structure findings worth preserving
+
+- **Pydantic field order is generation order.** The schema forces the model to
+  commit to geometry before it can name a numeral —
+  `die_location`, `top_face_position`, `visible_faces`, `other_face_numerals`,
+  `top_face`, `value`, `confidence`. Putting `visible_faces` before
+  `top_face_position` measurably reintroduces the face-selection error. Do not
+  reorder these casually.
+- **Prompt and input framing must match.** The instruction is written for tight
+  crops. Feeding it a whole-tray image is the 48% configuration.
+- The prompt is deliberately **colour-agnostic** — tray felt changed from red to
+  blue mid-project and die colours vary. Never reintroduce colour as a cue.
+- Naming a fallback value invites it. An early prompt produced 10 phantom `1`s;
+  suppressing `1` moved the default to `17`. Fallbacks migrate — the fix is
+  making `null` the sanctioned escape, not banning specific digits.
+
+### Confidence is still not usable as a gate
+
+Across every configuration, wrong answers come back `high` as often as correct
+ones. `gemini-2.5-pro` briefly showed calibrated confidence (8 `high`, zero
+wrong) but lost on accuracy and threw API nulls. **Do not gate on `confidence`
+without re-measuring it first.**
+
+`opposite_face_valid` (a face cannot be visible while its opposite, summing to
+21, is on top) is the better signal: it caught the single worst error in an
+early run with no false positives, though on a larger sample it runs ~70%
+precision. Use it as a retry trigger, not a hard reject.
+
+### Capture findings from the labeled set
+
+- **The full-ROI sharpness metric is dead.** Motion-blurred rejects scored
+  124–125 while good captures with the camera light off scored 62–74. An empty
+  tray scored 132. A global `sharpness_floor` cannot work; score the **die bbox
+  region** instead.
+- **A moved tray produces a false "die".** One capture was an empty tray whose
+  background reference no longer matched after the tray was bumped: occupancy
+  5849, bbox `[38, 0, 197, 306]` — a tall strip on the frame edge. This is the
+  same signature as the earlier 8:1 red strips, which were therefore
+  background mismatch, not motion smear. Premature capture is a *separate*,
+  also-real failure.
+- **`validCapture` was added** — aspect ratio 0.7–1.4, occupancy 2000–8000,
+  bbox not touching the frame border. It rejects both known bad-capture classes.
+  `occupancy_threshold` was raised from 500 to 2000; good rolls cluster at
+  3500–7300.
+- A dark die in a cast shadow still under-detects (one bbox came back 52×61
+  against a ~95px median). `deriveCrop` should take a `min_side` and crop
+  square from the bbox centre so a partial detection still contains the die.
+
+### Immediate next steps
+
+1. **Production still sends the wrong image.** `mainALT2` saves the full masked
+   tray; the prompt expects a crop. Wire `deriveCrop` into the live loop before
+   uncommenting `readDie`, or the live path runs at 48%, not 94%.
+2. Regional sharpness scoring, then gate on it in `mainALT2` (`score` is
+   computed at MAIN.py:88 and discarded).
+3. Self-healing background refresh on confirmed-empty settles.
+4. Optics: the tray spans ~854px of a 1920px sensor. A larger die is the only
+   remaining lever on 6/9 and on glare.
+
+### Known-hard images (regression canaries)
+
+- `roll_20260811_215752` (truth 7) — glare-blown top face, legible `15` on an
+  edge face. Every model in every run answers 15. Correct answer is `null`.
+- `roll_20260811_213827` (truth 14) — partial detection, 52×61 bbox.
+- `roll_20260811_220200` (truth 6) / `roll_20260811_220154` (truth 9) — the
+  dot cases that historically consumed the most thinking and truncated first.
 
 ## Security status — RESOLVED (verified at commit `6872ef3`)
 
