@@ -80,6 +80,7 @@ def userWindow():
     ttk.Entry(frm, textvariable=input_url, width=40).grid(column=dsc_url_entry_column, row=dsc_url_entry_row)
     def save():
         saved_url.set(input_url.get())
+        forceWriteToConfig("webhook_url", saved_url.get())
     ttk.Button(frm, text="Save", command=save).grid(column=dsc_save_button_column, row=dsc_save_button_row)
 
     #Discord Toggle
@@ -107,7 +108,7 @@ def userWindow():
             if kind == "value":
                 die_value.set(str(payload))
                 if discord_state.get() == "On":
-                    fireMessage(die_value)
+                    fireMessage(die_value.get())
 
         except queue.Empty:
             pass

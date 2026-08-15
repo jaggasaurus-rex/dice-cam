@@ -1,21 +1,24 @@
 import requests
+from config import loadConfig
 
-def fireMessage(pip_count, server_url): 
-    if pip_count == 20:
+def fireMessage(die_value):
+    cfg =  loadConfig()
+    server_url = cfg["webhook_url"]
+    if int(die_value) == 20:
         requests.post(
             url=server_url,
-            json={"content": f":fire: {pip_count} :fire:"},
+            json={"content": f":fire: {die_value} :fire:"},
             timeout=5,
             )
-    elif pip_count == 1:
+    elif int(die_value) == 1:
         requests.post(
             url=server_url,
-            json={"content": f":skull: {pip_count} :skull:"},
+            json={"content": f":skull: {die_value} :skull:"},
             timeout=5,
             )
     else:
         requests.post(
             url=server_url,
-            json={"content": pip_count},
+            json={"content": die_value},
             timeout=5,
             )

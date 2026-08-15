@@ -7,6 +7,7 @@ from config import *
 from camera import capture, cameraInitialization
 import cv2
 import threading
+import shutil, os
 
 from interface import detectionWorker, userWindow
 
@@ -87,6 +88,8 @@ def mainALT():
         #firstRunReset()
         cv2.destroyAllWindows()
         capture.release()
+        shutil.rmtree(os.path.join(os.path.dirname(__file__), "captures"), ignore_errors=True)
+        os.makedirs(os.path.join(os.path.dirname(__file__), "captures"), exist_ok=True)
     
 
 
