@@ -18,3 +18,9 @@ dsc_status_button_row=2
 
 quit_button_column=2
 quit_button_row=2
+
+reinitialize_button_column = 0
+reinitialize_button_row = 3
+
+reset_text_column = 1
+reset_text_row = 3

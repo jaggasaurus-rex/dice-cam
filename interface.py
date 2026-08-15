@@ -10,7 +10,7 @@ from frame_initialization import firstRunROIConfig, occupancyCount, buildTrayGeo
 from capture_generator import  saveSingleFrame, sharpestFrame, focusFineSweep, saveLabeledFrame, tests_directory
 from llm_gemini import readDie
 from general_variables import *
-from config import *
+from config import forceWriteToConfig, firstRunReset, loadConfig
 from camera import capture, cameraInitialization
 import cv2
 
@@ -58,6 +58,7 @@ def detectionWorker(threshold, roi, poly_mask, background):
             result_queue.put(("status", "Object obscuring camera. Roll again."))
 
 def userWindow():
+    cfg = loadConfig()
     root = Tk()
     root.geometry("800x600")
     frm = ttk.Frame(root, padding=10)
@@ -71,6 +72,9 @@ def userWindow():
     input_url = StringVar()
     saved_url = StringVar()
     saved_url.set("Discord not integrated")
+
+    if cfg["webhook_url"] is not None:
+        input_url.set(cfg["webhook_url"])
 
     #Result Display
     ttk.Label(frm, textvariable=die_value, font=("Helvetica",120,"bold")).grid(column=result_label_column, row=result_label_row,columnspan=3,sticky="",padx=10)
@@ -98,9 +102,14 @@ def userWindow():
     ttk.Label(frm, text="Discord Status: ").grid(column=dsc_status_label_column, row=dsc_status_label_row)
     ttk.Button(frm,textvariable=discord_state, command=discordToggle).grid(column=dsc_status_button_column, row=dsc_status_button_row)   
 
+    def exitAndReinitialize():
+        firstRunReset()
+        root.destroy()
 
-    #Quit Button
+    #Quit Buttons
     ttk.Button(frm, text="Quit", command=root.destroy).grid(column=quit_button_column, row=quit_button_row,sticky="e")
+    ttk.Label(frm, text="Clear tray calibration settings and exit").grid(column=reset_text_column, row=reset_text_row)
+    ttk.Button(frm, text="Reset", command=exitAndReinitialize).grid(column=reinitialize_button_column, row=reinitialize_button_row, sticky="e")
 
     def refresh():
         try:
